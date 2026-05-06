@@ -15,13 +15,18 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+backend/.pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 .coverage
+backend/.coverage
 coverage.xml
 htmlcov/
 .tox/
 .nox/
+pip-wheel-metadata/
+*.egg-info/
 
 # ----- Python virtual environments -----
 .venv/
@@ -40,7 +45,11 @@ conda-meta/
 *.log
 local_settings.py
 *.sqlite3
+*.sqlite
+*.db
 *.sqlite3-journal
+*.sqlite-journal
+*.db-journal
 db.sqlite3
 db.sqlite3-journal
 backend/db.sqlite3
@@ -51,6 +60,8 @@ backend/staticfiles/
 staticfiles/
 backend/media/
 media/
+backend/media/**/*
+!backend/media/.gitkeep
 
 # Future Garmin / Strava uploaded import files
 uploads/
@@ -71,6 +82,11 @@ frontend/build/
 frontend/.vite/
 .cache/
 frontend/.cache/
+.eslintcache
+frontend/.eslintcache
+.turbo/
+.parcel-cache/
+.npm/
 
 # npm/yarn/pnpm logs
 npm-debug.log*
@@ -88,9 +104,12 @@ frontend/cypress/screenshots/
 
 # ----- TypeScript -----
 *.tsbuildinfo
+frontend/*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
 
 # ----- OS / editors -----
 .DS_Store
+._*
 Thumbs.db
 desktop.ini
 
@@ -110,3 +129,4 @@ logs/
 *.tmp
 *.temp
 *.bak
+*.orig

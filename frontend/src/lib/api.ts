@@ -66,6 +66,9 @@ export type RunActivity = {
   perceived_effort: number | null;
   notes: string;
   source: string;
+  import_batch: number | null;
+  source_activity_id: string;
+  raw_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };
@@ -81,6 +84,40 @@ export type RunActivityInput = {
   run_type: string;
   perceived_effort?: number | null;
   notes?: string;
+};
+
+export type RunningImportSource = "garmin_export" | "strava_export" | "manual_upload" | "other";
+
+export type RunImportSummary = Pick<
+  RunActivity,
+  | "id"
+  | "title"
+  | "started_at"
+  | "distance_km"
+  | "duration_seconds"
+  | "avg_pace_seconds_per_km"
+  | "source"
+>;
+
+export type RunningImportBatch = {
+  id: number;
+  source: RunningImportSource;
+  file_type: string;
+  original_filename: string;
+  status: string;
+  imported_count: number;
+  skipped_count: number;
+  error_count: number;
+  errors: string[];
+  created_at: string;
+  updated_at: string;
+  runs: RunImportSummary[];
+};
+
+export type RunningImportResult = {
+  message: string;
+  batch: RunningImportBatch;
+  created_run: RunImportSummary | null;
 };
 
 export type MuscleGroup = {
@@ -238,6 +275,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
 
+  await throwIfNotOk(response);
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function throwIfNotOk(response: Response): Promise<void> {
   if (!response.ok) {
     let detail = `Request failed with status ${response.status}`;
 
@@ -255,12 +302,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     throw new Error(detail);
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 function getCookie(name: string): string | null {
@@ -284,6 +325,33 @@ async function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+export async function uploadRunningImport(file: File, source: RunningImportSource): Promise<RunningImportResult> {
+  const csrfToken = await ensureCsrfToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("source", source);
+
+  const response = await fetch(`${API_BASE_URL}/api/running/imports/`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-CSRFToken": csrfToken,
+    },
+    body: formData,
+  });
+
+  await throwIfNotOk(response);
+  return response.json() as Promise<RunningImportResult>;
+}
+
+export function getRunningImports(): Promise<RunningImportBatch[]> {
+  return request<RunningImportBatch[]>("/api/running/imports/");
+}
+
+export function getRunningImport(id: number): Promise<RunningImportBatch> {
+  return request<RunningImportBatch>(`/api/running/imports/${id}/`);
 }
 
 export const api = {
@@ -325,6 +393,12 @@ export const api = {
       mutate<RunActivity>(`/api/running/runs/${id}/`, "PATCH", input),
 
     delete: (id: number) => mutate<void>(`/api/running/runs/${id}/`, "DELETE"),
+  },
+
+  runningImports: {
+    list: getRunningImports,
+    retrieve: getRunningImport,
+    upload: uploadRunningImport,
   },
 
   muscleGroups: {
