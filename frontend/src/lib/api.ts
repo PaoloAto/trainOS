@@ -37,7 +37,20 @@ export type DailyCheckIn = {
   updated_at: string;
 };
 
-export type DailyCheckInInput = Partial<Pick<DailyCheckIn, "date" | "sleep_hours" | "sleep_quality" | "mood" | "energy" | "soreness" | "stress" | "body_weight" | "notes">>;
+export type DailyCheckInInput = Partial<
+  Pick<
+    DailyCheckIn,
+    | "date"
+    | "sleep_hours"
+    | "sleep_quality"
+    | "mood"
+    | "energy"
+    | "soreness"
+    | "stress"
+    | "body_weight"
+    | "notes"
+  >
+>;
 
 export type RunActivity = {
   id: number;
@@ -217,18 +230,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...init.headers,
+      ...(init.headers ?? {}),
     },
-    ...init,
   });
 
   if (!response.ok) {
     let detail = `Request failed with status ${response.status}`;
+
     try {
       const payload = (await response.json()) as { detail?: string } | Record<string, unknown>;
+
       if ("detail" in payload && typeof payload.detail === "string") {
         detail = payload.detail;
       } else {
@@ -237,6 +252,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // Keep the generic status message when the response is not JSON.
     }
+
     throw new Error(detail);
   }
 
@@ -260,6 +276,7 @@ async function ensureCsrfToken(): Promise<string> {
 
 async function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
   const csrfToken = await ensureCsrfToken();
+
   return request<T>(path, {
     method,
     headers: {
@@ -271,55 +288,100 @@ async function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body
 
 export const api = {
   health: () => request<HealthResponse>("/api/health/"),
+
   me: () => request<MeResponse>("/api/auth/me/"),
+
   csrf: () => request<{ csrfToken: string }>("/api/auth/csrf/"),
+
   async login(input: LoginInput) {
     return mutate<LoginResponse>("/api/auth/login/", "POST", input);
   },
+
   async logout() {
     return mutate<{ status: "ok" }>("/api/auth/logout/", "POST");
   },
+
   checkIns: {
     list: () => request<DailyCheckIn[]>("/api/journal/check-ins/"),
-    create: (input: DailyCheckInInput) => mutate<DailyCheckIn>("/api/journal/check-ins/", "POST", input),
+
+    create: (input: DailyCheckInInput) =>
+      mutate<DailyCheckIn>("/api/journal/check-ins/", "POST", input),
+
     today: () => request<DailyCheckIn>("/api/journal/check-ins/today/"),
-    saveToday: (input: DailyCheckInInput) => mutate<DailyCheckIn>("/api/journal/check-ins/today/", "PATCH", input),
+
+    saveToday: (input: DailyCheckInInput) =>
+      mutate<DailyCheckIn>("/api/journal/check-ins/today/", "PATCH", input),
   },
+
   runs: {
     list: () => request<RunActivity[]>("/api/running/runs/"),
-    create: (input: RunActivityInput) => mutate<RunActivity>("/api/running/runs/", "POST", input),
+
+    create: (input: RunActivityInput) =>
+      mutate<RunActivity>("/api/running/runs/", "POST", input),
+
     retrieve: (id: number) => request<RunActivity>(`/api/running/runs/${id}/`),
-    update: (id: number, input: Partial<RunActivityInput>) => mutate<RunActivity>(`/api/running/runs/${id}/`, "PATCH", input),
+
+    update: (id: number, input: Partial<RunActivityInput>) =>
+      mutate<RunActivity>(`/api/running/runs/${id}/`, "PATCH", input),
+
     delete: (id: number) => mutate<void>(`/api/running/runs/${id}/`, "DELETE"),
   },
+
   muscleGroups: {
     list: () => request<MuscleGroup[]>("/api/gym/muscle-groups/"),
   },
+
   exercises: {
     list: () => request<Exercise[]>("/api/gym/exercises/"),
-    create: (input: ExerciseInput) => mutate<Exercise>("/api/gym/exercises/", "POST", input),
+
+    create: (input: ExerciseInput) =>
+      mutate<Exercise>("/api/gym/exercises/", "POST", input),
+
     retrieve: (id: number) => request<Exercise>(`/api/gym/exercises/${id}/`),
-    update: (id: number, input: Partial<ExerciseInput>) => mutate<Exercise>(`/api/gym/exercises/${id}/`, "PATCH", input),
+
+    update: (id: number, input: Partial<ExerciseInput>) =>
+      mutate<Exercise>(`/api/gym/exercises/${id}/`, "PATCH", input),
   },
+
   gymSessions: {
     list: () => request<GymSession[]>("/api/gym/sessions/"),
-    create: (input: GymSessionInput) => mutate<GymSession>("/api/gym/sessions/", "POST", input),
+
+    create: (input: GymSessionInput) =>
+      mutate<GymSession>("/api/gym/sessions/", "POST", input),
+
     retrieve: (id: number) => request<GymSession>(`/api/gym/sessions/${id}/`),
-    update: (id: number, input: Partial<GymSessionInput>) => mutate<GymSession>(`/api/gym/sessions/${id}/`, "PATCH", input),
+
+    update: (id: number, input: Partial<GymSessionInput>) =>
+      mutate<GymSession>(`/api/gym/sessions/${id}/`, "PATCH", input),
+
     delete: (id: number) => mutate<void>(`/api/gym/sessions/${id}/`, "DELETE"),
   },
+
   climbingSessions: {
     list: () => request<ClimbingSession[]>("/api/climbing/sessions/"),
-    create: (input: ClimbingSessionInput) => mutate<ClimbingSession>("/api/climbing/sessions/", "POST", input),
+
+    create: (input: ClimbingSessionInput) =>
+      mutate<ClimbingSession>("/api/climbing/sessions/", "POST", input),
+
     retrieve: (id: number) => request<ClimbingSession>(`/api/climbing/sessions/${id}/`),
-    update: (id: number, input: Partial<ClimbingSessionInput>) => mutate<ClimbingSession>(`/api/climbing/sessions/${id}/`, "PATCH", input),
+
+    update: (id: number, input: Partial<ClimbingSessionInput>) =>
+      mutate<ClimbingSession>(`/api/climbing/sessions/${id}/`, "PATCH", input),
+
     delete: (id: number) => mutate<void>(`/api/climbing/sessions/${id}/`, "DELETE"),
   },
+
   climbingProjects: {
     list: () => request<ClimbingProject[]>("/api/climbing/projects/"),
-    create: (input: ClimbingProjectInput) => mutate<ClimbingProject>("/api/climbing/projects/", "POST", input),
+
+    create: (input: ClimbingProjectInput) =>
+      mutate<ClimbingProject>("/api/climbing/projects/", "POST", input),
+
     retrieve: (id: number) => request<ClimbingProject>(`/api/climbing/projects/${id}/`),
-    update: (id: number, input: Partial<ClimbingProjectInput>) => mutate<ClimbingProject>(`/api/climbing/projects/${id}/`, "PATCH", input),
+
+    update: (id: number, input: Partial<ClimbingProjectInput>) =>
+      mutate<ClimbingProject>(`/api/climbing/projects/${id}/`, "PATCH", input),
+
     delete: (id: number) => mutate<void>(`/api/climbing/projects/${id}/`, "DELETE"),
   },
 };
