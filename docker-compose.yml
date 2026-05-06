@@ -1,0 +1,23 @@
+# Optional future PostgreSQL setup.
+# Phase 1 and early MVP development use SQLite by default and do not require Docker.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trainos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trainos
+      POSTGRES_USER: trainos
+      POSTGRES_PASSWORD: trainos_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

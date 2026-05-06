@@ -1,0 +1,112 @@
+﻿# =========================
+# TrainOS .gitignore
+# Django + React/Vite
+# =========================
+
+# ----- Environment files -----
+.env
+.env.*
+!.env.example
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ----- Python virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+backend/.venv/
+backend/venv/
+backend/env/
+
+# Conda local envs, if created inside repo
+.conda/
+conda-meta/
+
+# ----- Django / SQLite -----
+*.log
+local_settings.py
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+db.sqlite3-journal
+backend/db.sqlite3
+backend/db.sqlite3-journal
+
+# Django static/media output
+backend/staticfiles/
+staticfiles/
+backend/media/
+media/
+
+# Future Garmin / Strava uploaded import files
+uploads/
+backend/uploads/
+imports/
+backend/imports/
+backend/media/imports/
+backend/media/running_imports/
+
+# ----- Node / React / Vite -----
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+frontend/build/
+.vite/
+frontend/.vite/
+.cache/
+frontend/.cache/
+
+# npm/yarn/pnpm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ----- Tests / coverage -----
+coverage/
+frontend/coverage/
+cypress/videos/
+cypress/screenshots/
+frontend/cypress/videos/
+frontend/cypress/screenshots/
+
+# ----- TypeScript -----
+*.tsbuildinfo
+
+# ----- OS / editors -----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# ----- Docker / database local volumes -----
+postgres_data/
+pgdata/
+
+# ----- Misc temp files -----
+logs/
+*.tmp
+*.temp
+*.bak

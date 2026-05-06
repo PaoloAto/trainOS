@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --chart-green: theme("colors.green.DEFAULT");
+    --chart-muted: theme("colors.text.muted");
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-bg-base text-text-primary antialiased;
+  }
+
+  body {
+    @apply min-h-screen bg-atmosphere font-sans;
+    margin: 0;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    @apply bg-green/20 text-text-primary;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+}
+
+@layer components {
+  .metric-number {
+    @apply font-mono tabular-nums;
+  }
+}
+
