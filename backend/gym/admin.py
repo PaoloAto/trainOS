@@ -16,8 +16,8 @@ class ExerciseReferenceInline(admin.TabularInline):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ("name", "user", "primary_muscle_group", "movement_pattern", "equipment", "is_custom")
-    list_filter = ("primary_muscle_group", "movement_pattern", "equipment", "is_custom")
+    list_display = ("name", "user", "primary_muscle_group", "movement_pattern", "equipment", "is_custom", "is_archived")
+    list_filter = ("primary_muscle_group", "movement_pattern", "equipment", "is_custom", "is_archived")
     search_fields = ("name", "user__username", "form_notes")
     filter_horizontal = ("secondary_muscle_groups",)
     inlines = (ExerciseReferenceInline,)

@@ -169,3 +169,150 @@ class ExerciseReferenceAPITests(TestCase):
             format="json",
         )
         self.assertEqual(other_patch.status_code, 404)
+
+
+class ExerciseArchiveAndEditingAPITests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="archive-owner", password="password")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.back = MuscleGroup.objects.get(name="Back")
+        self.chest = MuscleGroup.objects.get(name="Chest")
+        self.biceps = MuscleGroup.objects.get(name="Biceps")
+        self.exercise = Exercise.objects.create(
+            user=self.user,
+            name="Pull-up",
+            primary_muscle_group=self.back,
+            movement_pattern=Exercise.MovementPattern.PULL,
+            equipment=Exercise.Equipment.BODYWEIGHT,
+        )
+
+    def test_exercise_edit_updates_metadata(self):
+        response = self.client.patch(
+            f"/api/gym/exercises/{self.exercise.id}/",
+            {
+                "name": "Strict Pull-up",
+                "primary_muscle_group": self.back.id,
+                "secondary_muscle_groups": [self.biceps.id],
+                "movement_pattern": Exercise.MovementPattern.PULL,
+                "equipment": Exercise.Equipment.BODYWEIGHT,
+                "form_notes": "Start from a dead hang.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.exercise.refresh_from_db()
+        self.assertEqual(self.exercise.name, "Strict Pull-up")
+        self.assertEqual(response.data["secondary_muscle_group_names"], ["Biceps"])
+        self.assertEqual(response.data["form_notes"], "Start from a dead hang.")
+
+    def test_delete_archives_exercise_hides_from_active_list_and_restore_works(self):
+        session = GymSession.objects.create(user=self.user, date=timezone.localdate(), split_type=GymSession.SplitType.PULL)
+        GymSet.objects.create(session=session, exercise=self.exercise, set_number=1, weight=0, reps=8)
+        ExerciseReference.objects.create(user=self.user, exercise=self.exercise, url="https://youtu.be/example", source=ExerciseReference.Source.YOUTUBE)
+
+        delete_response = self.client.delete(f"/api/gym/exercises/{self.exercise.id}/")
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.exercise.refresh_from_db()
+        self.assertTrue(self.exercise.is_archived)
+        self.assertIsNotNone(self.exercise.archived_at)
+
+        active_list = self.client.get("/api/gym/exercises/")
+        self.assertFalse(any(item["id"] == self.exercise.id for item in active_list.data))
+
+        archived_list = self.client.get("/api/gym/exercises/?include_archived=true")
+        self.assertTrue(any(item["id"] == self.exercise.id for item in archived_list.data))
+
+        session_response = self.client.get(f"/api/gym/sessions/{session.id}/")
+        self.assertEqual(session_response.status_code, 200)
+        self.assertEqual(session_response.data["exercise_names"], ["Pull-up"])
+
+        restore_response = self.client.post(f"/api/gym/exercises/{self.exercise.id}/restore/")
+        self.assertEqual(restore_response.status_code, 200)
+        self.exercise.refresh_from_db()
+        self.assertFalse(self.exercise.is_archived)
+        self.assertIsNone(self.exercise.archived_at)
+
+    def test_last_performed_summary_fields(self):
+        session = GymSession.objects.create(user=self.user, date=timezone.localdate(), split_type=GymSession.SplitType.PULL)
+        GymSet.objects.create(session=session, exercise=self.exercise, set_number=1, weight=0, reps=6)
+        GymSet.objects.create(session=session, exercise=self.exercise, set_number=2, weight=0, reps=9)
+
+        response = self.client.get(f"/api/gym/exercises/{self.exercise.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["last_session_id"], session.id)
+        self.assertEqual(response.data["last_session_set_count"], 2)
+        self.assertEqual(response.data["last_session_best_reps"], 9)
+        self.assertIsNone(response.data["last_session_best_weight"])
+        self.assertIn("best 9 reps", response.data["last_session_summary_label"])
+
+
+class GymSessionEditingAPITests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="session-editor", password="password")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.back = MuscleGroup.objects.get(name="Back")
+        self.chest = MuscleGroup.objects.get(name="Chest")
+        self.pull_up = Exercise.objects.create(user=self.user, name="Pull-up", primary_muscle_group=self.back)
+        self.bench = Exercise.objects.create(user=self.user, name="Bench Press", primary_muscle_group=self.chest)
+        self.session = GymSession.objects.create(user=self.user, date=timezone.localdate(), split_type=GymSession.SplitType.PULL)
+        GymSet.objects.create(session=self.session, exercise=self.pull_up, set_number=1, weight=0, reps=8)
+        GymSet.objects.create(session=self.session, exercise=self.pull_up, set_number=2, weight=0, reps=7)
+        GymSet.objects.create(session=self.session, exercise=self.bench, set_number=3, weight=60, reps=8)
+
+    def test_session_update_removes_set_and_renumbers_sequentially(self):
+        response = self.client.patch(
+            f"/api/gym/sessions/{self.session.id}/",
+            {
+                "date": self.session.date.isoformat(),
+                "split_type": GymSession.SplitType.UPPER,
+                "duration_minutes": 55,
+                "notes": "Edited session",
+                "sets": [
+                    {
+                        "exercise": self.pull_up.id,
+                        "set_number": 99,
+                        "weight": 0,
+                        "reps": 8,
+                        "rpe": 8,
+                        "notes": "Kept first set",
+                    },
+                    {
+                        "exercise": self.bench.id,
+                        "set_number": 42,
+                        "weight": 62.5,
+                        "reps": 6,
+                        "rpe": 8,
+                        "notes": "Added weight",
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.split_type, GymSession.SplitType.UPPER)
+        sets = list(self.session.sets.order_by("set_number"))
+        self.assertEqual(len(sets), 2)
+        self.assertEqual([gym_set.set_number for gym_set in sets], [1, 2])
+        self.assertEqual(sets[1].weight, 62.5)
+
+    def test_archived_exercise_is_not_valid_for_new_session_selection(self):
+        self.pull_up.archive()
+
+        response = self.client.post(
+            "/api/gym/sessions/",
+            {
+                "date": timezone.localdate().isoformat(),
+                "split_type": GymSession.SplitType.PULL,
+                "sets": [{"exercise": self.pull_up.id, "set_number": 1, "weight": 0, "reps": 8}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)

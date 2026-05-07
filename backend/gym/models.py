@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class MuscleGroup(models.Model):
@@ -44,6 +45,8 @@ class Exercise(models.Model):
     equipment = models.CharField(max_length=24, choices=Equipment.choices, blank=True)
     form_notes = models.TextField(blank=True)
     is_custom = models.BooleanField(default=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -52,6 +55,18 @@ class Exercise(models.Model):
 
     def __str__(self):
         return self.name
+
+    def archive(self):
+        if not self.is_archived:
+            self.is_archived = True
+            self.archived_at = timezone.now()
+            self.save(update_fields=["is_archived", "archived_at", "updated_at"])
+
+    def restore(self):
+        if self.is_archived:
+            self.is_archived = False
+            self.archived_at = None
+            self.save(update_fields=["is_archived", "archived_at", "updated_at"])
 
 
 class ExerciseReference(models.Model):

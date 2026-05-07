@@ -1,18 +1,21 @@
 import {
+  Archive,
   Dumbbell,
   ExternalLink,
   type LucideIcon,
   Pencil,
-  Search,
+  Play,
+  Plus,
   ShieldCheck,
   Sparkles,
   Trash2,
-  Video,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 
+import { QuickLogSheet } from "@/components/app/QuickLogSheet";
 import { Card } from "@/components/common/Card";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ExerciseReferenceViewer } from "@/components/gym/ExerciseReferenceViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,27 +32,17 @@ import {
   type ExerciseReferenceInput,
   type ExerciseReferenceSource,
   type GymAnalytics,
+  type GymSetInput,
   type GymSession,
   type MuscleGroup,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/format";
+import { detectReferenceSource, externalReferenceLabel, getYouTubePreview, sourceBadgeClasses, sourceLabels } from "@/lib/video";
 
-const sourceLabels: Record<ExerciseReferenceSource, string> = {
-  youtube: "YouTube",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  website: "Website",
-  other: "Other",
-};
-
-const sourceBadgeClasses: Record<ExerciseReferenceSource, string> = {
-  youtube: "border-red bg-red-muted text-red",
-  instagram: "border-indigo bg-indigo-muted text-indigo",
-  tiktok: "border-border bg-bg-elevated text-text-primary",
-  website: "border-green bg-green-muted text-green",
-  other: "border-amber bg-amber-muted text-amber",
-};
+const movementOptions = ["", "push", "pull", "squat", "hinge", "lunge", "carry", "rotation", "isolation", "core", "other"];
+const equipmentOptions = ["", "barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"];
+const splitOptions = ["push", "pull", "legs", "upper", "lower", "full_body", "custom"];
 
 const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/20";
 const textareaClass = "min-h-24 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-amber focus:ring-2 focus:ring-amber/20";
@@ -60,10 +53,10 @@ export function GymPage() {
   const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
   const [analytics, setAnalytics] = useState<GymAnalytics | null>(null);
   const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null);
-  const [search, setSearch] = useState("");
-  const [muscleFilter, setMuscleFilter] = useState("all");
-  const [equipmentFilter, setEquipmentFilter] = useState("all");
-  const [movementFilter, setMovementFilter] = useState("all");
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [previewReference, setPreviewReference] = useState<ExerciseReference | null>(null);
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
+  const [quickLogExerciseId, setQuickLogExerciseId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -121,18 +114,7 @@ export function GymPage() {
   }, []);
 
   const selectedExercise = exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
-  const equipmentOptions = useMemo(() => uniqueOptions(exercises.map((exercise) => exercise.equipment).filter(Boolean)), [exercises]);
-  const movementOptions = useMemo(() => uniqueOptions(exercises.map((exercise) => exercise.movement_pattern).filter(Boolean)), [exercises]);
-  const filteredExercises = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return exercises.filter((exercise) => {
-      const matchesSearch = !query || exercise.name.toLowerCase().includes(query);
-      const matchesMuscle = muscleFilter === "all" || String(exercise.primary_muscle_group) === muscleFilter;
-      const matchesEquipment = equipmentFilter === "all" || exercise.equipment === equipmentFilter;
-      const matchesMovement = movementFilter === "all" || exercise.movement_pattern === movementFilter;
-      return matchesSearch && matchesMuscle && matchesEquipment && matchesMovement;
-    });
-  }, [equipmentFilter, exercises, movementFilter, muscleFilter, search]);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
 
   return (
     <>
@@ -152,34 +134,52 @@ export function GymPage() {
               <MuscleCoverageCard analytics={analytics} />
               <SplitDistributionCard analytics={analytics} />
             </div>
-            <ExerciseLibrary
-              exercises={filteredExercises}
-              allExercises={exercises}
-              muscleGroups={muscleGroups}
-              equipmentOptions={equipmentOptions}
-              movementOptions={movementOptions}
-              search={search}
-              muscleFilter={muscleFilter}
-              equipmentFilter={equipmentFilter}
-              movementFilter={movementFilter}
-              onSearch={setSearch}
-              onMuscleFilter={setMuscleFilter}
-              onEquipmentFilter={setEquipmentFilter}
-              onMovementFilter={setMovementFilter}
+            <ExerciseReferenceViewer
+              exercises={exercises}
+              onChanged={() => loadData(selectedExerciseId)}
+              onLogSet={(exerciseId) => {
+                setQuickLogExerciseId(exerciseId ?? null);
+                setQuickLogOpen(true);
+              }}
               onOpenExercise={setSelectedExerciseId}
             />
-            <RecentSessions sessions={sessions} />
+            <RecentSessions sessions={sessions} onEditSession={setSelectedSessionId} />
           </>
         ) : null}
       </section>
 
       <ExerciseDetailSheet
         exercise={selectedExercise}
+        muscleGroups={muscleGroups}
         open={selectedExercise !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedExerciseId(null);
         }}
         onChanged={() => loadData(selectedExercise?.id ?? null)}
+        onPreviewReference={setPreviewReference}
+      />
+      <SessionEditSheet
+        session={selectedSession}
+        exercises={exercises}
+        open={selectedSession !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSessionId(null);
+        }}
+        onChanged={() => loadData(selectedExerciseId)}
+      />
+      <YoutubePreviewSheet
+        reference={previewReference}
+        open={previewReference !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewReference(null);
+        }}
+      />
+      <QuickLogSheet
+        open={quickLogOpen}
+        onOpenChange={setQuickLogOpen}
+        initialMode="gym"
+        initialGymExerciseId={quickLogExerciseId}
+        onSaved={() => loadData(selectedExerciseId)}
       />
     </>
   );
@@ -312,126 +312,49 @@ function SplitDistributionCard({ analytics }: { analytics: GymAnalytics }) {
   );
 }
 
-function ExerciseLibrary({
-  exercises,
-  allExercises,
+function ExerciseDetailSheet({
+  exercise,
   muscleGroups,
-  equipmentOptions,
-  movementOptions,
-  search,
-  muscleFilter,
-  equipmentFilter,
-  movementFilter,
-  onSearch,
-  onMuscleFilter,
-  onEquipmentFilter,
-  onMovementFilter,
-  onOpenExercise,
+  open,
+  onOpenChange,
+  onChanged,
+  onPreviewReference,
 }: {
-  exercises: Exercise[];
-  allExercises: Exercise[];
+  exercise: Exercise | null;
   muscleGroups: MuscleGroup[];
-  equipmentOptions: string[];
-  movementOptions: string[];
-  search: string;
-  muscleFilter: string;
-  equipmentFilter: string;
-  movementFilter: string;
-  onSearch: (value: string) => void;
-  onMuscleFilter: (value: string) => void;
-  onEquipmentFilter: (value: string) => void;
-  onMovementFilter: (value: string) => void;
-  onOpenExercise: (id: number) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChanged: () => void;
+  onPreviewReference: (reference: ExerciseReference) => void;
 }) {
-  return (
-    <Card className="overflow-hidden p-0" delay={0.03}>
-      <div className="border-b border-border bg-bg-elevated/60 px-5 py-4 md:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Exercise library</p>
-            <h2 className="mt-1 text-lg font-semibold text-text-primary">Reference links and performance cues</h2>
-            <p className="mt-1 text-sm leading-6 text-text-secondary">{allExercises.length} exercises / {allExercises.reduce((sum, exercise) => sum + exercise.reference_count, 0)} saved references</p>
-          </div>
-          <div className="rounded-2xl border border-amber bg-amber-muted p-3 text-amber">
-            <Video className="h-5 w-5" />
-          </div>
-        </div>
-      </div>
-      <div className="space-y-4 p-5 md:p-6">
-        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-            <Input className="pl-9 focus:border-amber focus:ring-amber/20" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search exercises" />
-          </div>
-          <select className={selectClass} value={muscleFilter} onChange={(event) => onMuscleFilter(event.target.value)}>
-            <option value="all">All muscles</option>
-            {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-          </select>
-          <select className={selectClass} value={equipmentFilter} onChange={(event) => onEquipmentFilter(event.target.value)}>
-            <option value="all">All equipment</option>
-            {equipmentOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
-          </select>
-          <select className={selectClass} value={movementFilter} onChange={(event) => onMovementFilter(event.target.value)}>
-            <option value="all">All patterns</option>
-            {movementOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
-          </select>
-        </div>
-
-        {exercises.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">
-            No exercises match the current filters. Create exercises from Quick Log, then add form references here.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {exercises.map((exercise) => (
-              <ExerciseCard key={exercise.id} exercise={exercise} onOpen={() => onOpenExercise(exercise.id)} />
-            ))}
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function ExerciseCard({ exercise, onOpen }: { exercise: Exercise; onOpen: () => void }) {
-  return (
-    <div className="rounded-3xl border border-border bg-bg-elevated p-4 transition hover:border-amber/70">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-text-primary">{exercise.name}</p>
-          <p className="mt-1 text-sm text-text-secondary">{exercise.primary_muscle_group_name}</p>
-        </div>
-        <span className="rounded-full border border-amber bg-amber-muted px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber">
-          {exercise.reference_count} refs
-        </span>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {exercise.equipment ? <Chip>{labelize(exercise.equipment)}</Chip> : null}
-        {exercise.movement_pattern ? <Chip>{labelize(exercise.movement_pattern)}</Chip> : null}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <MiniMetric label="Recent sets" value={String(exercise.recent_set_count)} />
-        <MiniMetric label={exercise.best_weight ? "Best weight" : "Best reps"} value={exercise.best_weight ? String(exercise.best_weight) : String(exercise.best_reps ?? "--")} unit={exercise.best_weight ? "kg" : undefined} />
-        {exercise.best_estimated_1rm ? <MiniMetric label="Est. 1RM" value={exercise.best_estimated_1rm.toFixed(1)} unit="kg" /> : null}
-        {exercise.last_performed_date ? <MiniMetric label="Last done" value={formatShortDate(exercise.last_performed_date)} /> : null}
-      </div>
-      <Button className="mt-4 h-10 w-full rounded-2xl" variant="secondary" onClick={onOpen}>
-        Open details
-      </Button>
-    </div>
-  );
-}
-
-function ExerciseDetailSheet({ exercise, open, onOpenChange, onChanged }: { exercise: Exercise | null; open: boolean; onOpenChange: (open: boolean) => void; onChanged: () => void }) {
   const [editingReference, setEditingReference] = useState<ExerciseReference | null>(null);
+  const [editingExercise, setEditingExercise] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   if (!exercise) return null;
+  const exerciseId = exercise.id;
+
+  async function handleArchive() {
+    const confirmed = window.confirm("Archive this exercise? It will disappear from active lists and quick log, but old sessions stay intact.");
+    if (!confirmed) return;
+    setArchiving(true);
+    try {
+      await api.exercises.archive(exerciseId);
+      onChanged();
+      onOpenChange(false);
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   return (
     <Sheet
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setEditingReference(null);
+        if (!nextOpen) {
+          setEditingReference(null);
+          setEditingExercise(false);
+        }
         onOpenChange(nextOpen);
       }}
     >
@@ -443,20 +366,49 @@ function ExerciseDetailSheet({ exercise, open, onOpenChange, onChanged }: { exer
         </SheetHeader>
 
         <div className="space-y-4 overflow-y-auto pr-1">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <MiniMetric label="References" value={String(exercise.reference_count)} />
-            <MiniMetric label="Recent sets" value={String(exercise.recent_set_count)} />
-            <MiniMetric label={exercise.best_weight ? "Best weight" : "Best reps"} value={exercise.best_weight ? String(exercise.best_weight) : String(exercise.best_reps ?? "--")} unit={exercise.best_weight ? "kg" : undefined} />
-            <MiniMetric label="Est. 1RM" value={exercise.best_estimated_1rm ? exercise.best_estimated_1rm.toFixed(1) : "--"} unit={exercise.best_estimated_1rm ? "kg" : undefined} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" className="rounded-2xl" onClick={() => setEditingExercise((value) => !value)}>
+              <Pencil className="h-4 w-4" />
+              {editingExercise ? "Close editor" : "Edit exercise"}
+            </Button>
+            <Button type="button" variant="danger" className="rounded-2xl" onClick={handleArchive} disabled={archiving}>
+              <Archive className="h-4 w-4" />
+              {archiving ? "Archiving..." : "Archive"}
+            </Button>
           </div>
 
-          <DetailSection eyebrow="Overview" title="Form notes">
-            {exercise.form_notes ? (
-              <p className="text-sm leading-6 text-text-secondary">{exercise.form_notes}</p>
-            ) : (
-              <p className="text-sm leading-6 text-text-muted">No form notes yet. Add cues when this exercise needs specific setup reminders.</p>
-            )}
-          </DetailSection>
+          {editingExercise ? (
+            <ExerciseEditForm
+              exercise={exercise}
+              muscleGroups={muscleGroups}
+              onCancel={() => setEditingExercise(false)}
+              onSaved={() => {
+                setEditingExercise(false);
+                onChanged();
+              }}
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <MiniMetric label="References" value={String(exercise.reference_count)} />
+                <MiniMetric label="Recent sets" value={String(exercise.recent_set_count)} />
+                <MiniMetric label={exercise.best_weight ? "Best weight" : "Best reps"} value={exercise.best_weight ? String(exercise.best_weight) : String(exercise.best_reps ?? "--")} unit={exercise.best_weight ? "kg" : undefined} />
+                <MiniMetric label="Est. 1RM" value={exercise.best_estimated_1rm ? exercise.best_estimated_1rm.toFixed(1) : "--"} unit={exercise.best_estimated_1rm ? "kg" : undefined} />
+              </div>
+
+              <DetailSection eyebrow="Last performed" title="Training context">
+                <p className="rounded-2xl border border-amber bg-amber-muted p-3 text-sm leading-6 text-amber">{exercise.last_session_summary_label}</p>
+              </DetailSection>
+
+              <DetailSection eyebrow="Overview" title="Form notes">
+                {exercise.form_notes ? (
+                  <p className="text-sm leading-6 text-text-secondary">{exercise.form_notes}</p>
+                ) : (
+                  <p className="text-sm leading-6 text-text-muted">No form notes yet. Add cues when this exercise needs specific setup reminders.</p>
+                )}
+              </DetailSection>
+            </>
+          )}
 
           <DetailSection eyebrow="Reference links" title="Video and form library">
             {exercise.references.length === 0 ? (
@@ -469,6 +421,7 @@ function ExerciseDetailSheet({ exercise, open, onOpenChange, onChanged }: { exer
                   <ReferenceCard
                     key={reference.id}
                     reference={reference}
+                    onPreview={() => onPreviewReference(reference)}
                     onEdit={() => setEditingReference(reference)}
                     onDelete={async () => {
                       await api.exerciseReferences.delete(reference.id);
@@ -496,8 +449,100 @@ function ExerciseDetailSheet({ exercise, open, onOpenChange, onChanged }: { exer
   );
 }
 
-function ReferenceCard({ reference, onEdit, onDelete }: { reference: ExerciseReference; onEdit: () => void; onDelete: () => Promise<void> }) {
+function ExerciseEditForm({ exercise, muscleGroups, onCancel, onSaved }: { exercise: Exercise; muscleGroups: MuscleGroup[]; onCancel: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(exercise.name);
+  const [primaryGroup, setPrimaryGroup] = useState(String(exercise.primary_muscle_group));
+  const [secondaryGroups, setSecondaryGroups] = useState<number[]>(exercise.secondary_muscle_groups);
+  const [equipment, setEquipment] = useState(exercise.equipment);
+  const [movement, setMovement] = useState(exercise.movement_pattern);
+  const [formNotes, setFormNotes] = useState(exercise.form_notes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleSecondary(groupId: number) {
+    setSecondaryGroups((current) =>
+      current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId],
+    );
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.exercises.update(exercise.id, {
+        name,
+        primary_muscle_group: Number(primaryGroup),
+        secondary_muscle_groups: secondaryGroups,
+        equipment,
+        movement_pattern: movement,
+        form_notes: formNotes,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update exercise.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="space-y-4 rounded-3xl border border-amber bg-amber-muted p-4" onSubmit={handleSubmit}>
+      <div className="border-b border-border pb-3">
+        <p className="text-[0.68rem] uppercase tracking-[0.2em] text-amber">Edit exercise</p>
+        <p className="mt-1 text-sm text-text-secondary">Keep setup, muscle mapping, and form cues accurate.</p>
+      </div>
+      <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} required className="focus:border-amber focus:ring-amber/20" /></Field>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Field label="Primary muscle">
+          <select className={selectClass} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)}>
+            {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Equipment">
+          <select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
+            {equipmentOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
+          </select>
+        </Field>
+        <Field label="Pattern">
+          <select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>
+            {movementOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Secondary muscles</p>
+        <div className="flex flex-wrap gap-2">
+          {muscleGroups.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                secondaryGroups.includes(group.id) ? "border-amber bg-amber-muted text-amber" : "border-border bg-bg-elevated text-text-secondary",
+              )}
+              onClick={() => toggleSecondary(group.id)}
+            >
+              {group.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Field label="Form notes"><textarea className={textareaClass} value={formNotes} onChange={(event) => setFormNotes(event.target.value)} placeholder="Setup cues, range of motion, tempo, or common mistakes." /></Field>
+      {error ? <p className="rounded-2xl border border-red bg-red-muted p-3 text-sm text-red">{error}</p> : null}
+      <div className="grid grid-cols-2 gap-3">
+        <Button type="button" variant="secondary" className="rounded-2xl" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" className="rounded-2xl" disabled={saving || !name}>{saving ? "Saving..." : "Save exercise"}</Button>
+      </div>
+    </form>
+  );
+}
+
+function ReferenceCard({ reference, onPreview, onEdit, onDelete }: { reference: ExerciseReference; onPreview: () => void; onEdit: () => void; onDelete: () => Promise<void> }) {
   const [deleting, setDeleting] = useState(false);
+  const youtubePreview = getYouTubePreview(reference.url);
+  const canPreview = reference.source === "youtube" && youtubePreview !== null;
+  const sourceLabel = canPreview ? sourceLabels[reference.source] : externalReferenceLabel(reference.source);
 
   async function handleDelete() {
     setDeleting(true);
@@ -512,11 +557,18 @@ function ReferenceCard({ reference, onEdit, onDelete }: { reference: ExerciseRef
     <div className="rounded-2xl border border-border bg-bg-elevated p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em]", sourceBadgeClasses[reference.source])}>{sourceLabels[reference.source]}</span>
+          <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em]", sourceBadgeClasses[reference.source])}>{sourceLabel}</span>
           <p className="mt-2 truncate text-sm font-semibold text-text-primary">{reference.title || reference.url}</p>
           {reference.notes ? <p className="mt-1 text-xs leading-5 text-text-secondary">{reference.notes}</p> : null}
+          {!canPreview ? <p className="mt-2 text-xs text-text-muted">Open externally to view this cue.</p> : null}
         </div>
         <div className="flex gap-2">
+          {canPreview ? (
+            <Button type="button" variant="secondary" size="sm" className="h-9 rounded-xl" onClick={onPreview}>
+              <Play className="h-3.5 w-3.5" />
+              Preview
+            </Button>
+          ) : null}
           <a className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber bg-amber-muted px-3 text-xs font-semibold text-amber transition hover:bg-amber/20" href={reference.url} target="_blank" rel="noreferrer">
             <ExternalLink className="h-3.5 w-3.5" />
             Open
@@ -613,7 +665,7 @@ function ReferenceForm({ exercise, reference, onCancel, onSaved }: { exercise: E
   );
 }
 
-function RecentSessions({ sessions }: { sessions: GymSession[] }) {
+function RecentSessions({ sessions, onEditSession }: { sessions: GymSession[]; onEditSession: (id: number) => void }) {
   return (
     <div className="space-y-3">
       <SectionHeader label="Recent sessions" description="Split sessions remain visible below the dashboard." />
@@ -634,9 +686,193 @@ function RecentSessions({ sessions }: { sessions: GymSession[] }) {
             <Metric label="Sets logged" value={String(session.set_count)} />
             <Metric label="Duration" value={session.duration_minutes ? String(session.duration_minutes) : "--"} unit={session.duration_minutes ? "min" : undefined} />
           </div>
+          <Button type="button" variant="secondary" className="mt-4 h-10 w-full rounded-2xl" onClick={() => onEditSession(session.id)}>
+            <Pencil className="h-4 w-4" />
+            Edit session
+          </Button>
         </Card>
       ))}
     </div>
+  );
+}
+
+type EditableGymSet = {
+  exercise: string;
+  reps: string;
+  weight: string;
+  rpe: string;
+  notes: string;
+};
+
+function SessionEditSheet({ session, exercises, open, onOpenChange, onChanged }: { session: GymSession | null; exercises: Exercise[]; open: boolean; onOpenChange: (open: boolean) => void; onChanged: () => void }) {
+  if (!session) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto md:w-[min(92vw,52rem)]">
+        <SheetHeader>
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Edit session</p>
+          <SheetTitle>{labelize(session.split_type)} session</SheetTitle>
+          <SheetDescription>Edit sets, remove rows, or delete the session. Exercise objects are never deleted from here.</SheetDescription>
+        </SheetHeader>
+        <SessionEditForm
+          key={session.id}
+          session={session}
+          exercises={exercises}
+          onSaved={() => {
+            onChanged();
+            onOpenChange(false);
+          }}
+          onDeleted={() => {
+            onChanged();
+            onOpenChange(false);
+          }}
+        />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SessionEditForm({ session, exercises, onSaved, onDeleted }: { session: GymSession; exercises: Exercise[]; onSaved: () => void; onDeleted: () => void }) {
+  const [date, setDate] = useState(session.date);
+  const [splitType, setSplitType] = useState(session.split_type);
+  const [duration, setDuration] = useState(session.duration_minutes ? String(session.duration_minutes) : "");
+  const [notes, setNotes] = useState(session.notes);
+  const [sets, setSets] = useState<EditableGymSet[]>(
+    session.sets.map((gymSet) => ({
+      exercise: String(gymSet.exercise),
+      reps: String(gymSet.reps),
+      weight: gymSet.weight === null ? "" : String(gymSet.weight),
+      rpe: gymSet.rpe === null ? "" : String(gymSet.rpe),
+      notes: gymSet.notes,
+    })),
+  );
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const exerciseOptions = sessionExerciseOptions(exercises, session);
+
+  function updateSet(index: number, patch: Partial<EditableGymSet>) {
+    setSets((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function removeSet(index: number) {
+    setSets((current) => current.filter((_item, itemIndex) => itemIndex !== index));
+  }
+
+  function addSet() {
+    setSets((current) => [
+      ...current,
+      {
+        exercise: String(exerciseOptions[0]?.id ?? ""),
+        reps: "8",
+        weight: "",
+        rpe: "",
+        notes: "",
+      },
+    ]);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    const payloadSets: GymSetInput[] = sets
+      .filter((item) => item.exercise && Number(item.reps) > 0)
+      .map((item, index) => ({
+        exercise: Number(item.exercise),
+        set_number: index + 1,
+        reps: Math.max(1, Math.round(Number(item.reps))),
+        weight: optionalNumber(item.weight),
+        rpe: optionalNumber(item.rpe),
+        notes: item.notes,
+      }));
+
+    try {
+      await api.gymSessions.update(session.id, {
+        date,
+        split_type: splitType,
+        duration_minutes: optionalNumber(duration) ?? null,
+        notes,
+        sets: payloadSets,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update gym session.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm("Delete this gym session? This removes the session and its sets, not the exercise definitions.");
+    if (!confirmed) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.gymSessions.delete(session.id);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete gym session.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Field label="Date"><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="focus:border-amber focus:ring-amber/20" /></Field>
+        <Field label="Split">
+          <select className={selectClass} value={splitType} onChange={(event) => setSplitType(event.target.value)}>
+            {splitOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
+          </select>
+        </Field>
+        <Field label="Duration"><Input inputMode="numeric" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="60 min" className="focus:border-amber focus:ring-amber/20" /></Field>
+      </div>
+      <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Session notes" /></Field>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Sets</p>
+          <Button type="button" variant="secondary" size="sm" onClick={addSet}>
+            <Plus className="h-4 w-4" />
+            Add set
+          </Button>
+        </div>
+        {sets.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-bg-elevated p-4 text-sm text-text-secondary">No sets remain. Add one set before saving if this session should stay useful.</div>
+        ) : null}
+        {sets.map((gymSet, index) => (
+          <div key={`${index}-${gymSet.exercise}`} className="rounded-3xl border border-border bg-bg-elevated p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="metric-number text-sm font-bold text-amber">Set {index + 1}</p>
+              <Button type="button" variant="danger" size="sm" onClick={() => removeSet(index)}>
+                <Trash2 className="h-4 w-4" />
+                Remove
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-5">
+              <Field label="Exercise" className="md:col-span-2">
+                <select className={selectClass} value={gymSet.exercise} onChange={(event) => updateSet(index, { exercise: event.target.value })}>
+                  {exerciseOptions.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Reps"><Input inputMode="numeric" value={gymSet.reps} onChange={(event) => updateSet(index, { reps: event.target.value })} className="focus:border-amber focus:ring-amber/20" /></Field>
+              <Field label="Weight"><Input inputMode="decimal" value={gymSet.weight} onChange={(event) => updateSet(index, { weight: event.target.value })} className="focus:border-amber focus:ring-amber/20" /></Field>
+              <Field label="RPE"><Input inputMode="decimal" value={gymSet.rpe} onChange={(event) => updateSet(index, { rpe: event.target.value })} className="focus:border-amber focus:ring-amber/20" /></Field>
+            </div>
+            <Field label="Set notes"><Input value={gymSet.notes} onChange={(event) => updateSet(index, { notes: event.target.value })} placeholder="Optional" className="focus:border-amber focus:ring-amber/20" /></Field>
+          </div>
+        ))}
+      </div>
+      {error ? <p className="rounded-2xl border border-red bg-red-muted p-3 text-sm text-red">{error}</p> : null}
+      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+        <Button type="submit" className="h-11 rounded-2xl" disabled={saving || sets.length === 0}>{saving ? "Saving..." : "Save session"}</Button>
+        <Button type="button" variant="danger" className="h-11 rounded-2xl" onClick={handleDelete} disabled={deleting}>
+          {deleting ? "Deleting..." : "Delete session"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -701,13 +937,9 @@ function MiniMetric({ label, value, unit }: { label: string; value: string; unit
   );
 }
 
-function Chip({ children }: { children: ReactNode }) {
-  return <span className="rounded-full border border-border bg-bg-card px-2.5 py-1 text-xs font-semibold text-text-secondary">{children}</span>;
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className="block space-y-2">
+    <label className={cn("block space-y-2", className)}>
       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</span>
       {children}
     </label>
@@ -718,14 +950,50 @@ function StateCard({ message, tone = "default" }: { message: string; tone?: "def
   return <Card className={tone === "error" ? "border-red bg-red-muted text-red" : "text-text-secondary"}>{message}</Card>;
 }
 
+function YoutubePreviewSheet({ reference, open, onOpenChange }: { reference: ExerciseReference | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const preview = reference?.source === "youtube" ? getYouTubePreview(reference.url) : null;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto md:w-[min(92vw,42rem)]">
+        <SheetHeader>
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Video preview</p>
+          <SheetTitle>{reference?.title || "YouTube reference"}</SheetTitle>
+          <SheetDescription>Preview uses youtube-nocookie.com. TrainOS only stores the URL and your notes.</SheetDescription>
+        </SheetHeader>
+        {reference && preview ? (
+          <div className="space-y-4">
+            <div className={cn("overflow-hidden rounded-3xl border border-border bg-bg-elevated", preview.isShort ? "mx-auto aspect-[9/16] max-h-[70vh] w-full max-w-sm" : "aspect-video")}>
+              <iframe
+                className="h-full w-full"
+                src={preview.embedUrl}
+                title={reference.title || "YouTube preview"}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+            {reference.notes ? <p className="rounded-2xl border border-border bg-bg-elevated p-3 text-sm leading-6 text-text-secondary">{reference.notes}</p> : null}
+            <a className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-amber bg-amber-muted px-4 text-sm font-semibold text-amber transition hover:bg-amber/20" href={reference.url} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              Open in YouTube
+            </a>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">
+            Preview unavailable for this reference. Open it in the source app or site.
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function topMuscleCoverage(analytics: GymAnalytics) {
   const trained = analytics.muscle_coverage_this_week.filter((item) => item.total_set_count > 0);
   if (!trained.length) return null;
   return trained.sort((a, b) => b.total_set_count - a.total_set_count)[0];
-}
-
-function uniqueOptions(values: string[]) {
-  return Array.from(new Set(values)).sort();
 }
 
 function barWidth(value: number, maxValue: number) {
@@ -733,15 +1001,23 @@ function barWidth(value: number, maxValue: number) {
   return Math.max(8, (value / Math.max(1, maxValue)) * 100);
 }
 
-function labelize(value: string) {
-  return value.replaceAll("_", " ");
+function optionalNumber(value: string) {
+  if (value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function detectReferenceSource(value: string): ExerciseReferenceSource {
-  const lower = value.toLowerCase();
-  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
-  if (lower.includes("instagram.com")) return "instagram";
-  if (lower.includes("tiktok.com")) return "tiktok";
-  if (lower.startsWith("http")) return "website";
-  return "other";
+function sessionExerciseOptions(exercises: Exercise[], session: GymSession) {
+  const options = exercises.map((exercise) => ({ id: exercise.id, name: exercise.name }));
+  for (const gymSet of session.sets) {
+    if (!options.some((exercise) => exercise.id === gymSet.exercise)) {
+      options.push({ id: gymSet.exercise, name: `${gymSet.exercise_name} (archived)` });
+    }
+  }
+  return options;
+}
+
+function labelize(value: string) {
+  if (!value) return "None";
+  return value.replaceAll("_", " ");
 }

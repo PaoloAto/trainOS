@@ -7,8 +7,11 @@ from rest_framework import serializers
 from .models import Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup
 
 
-def accessible_exercises(user):
-    return Exercise.objects.filter(Q(user=user) | Q(user__isnull=True))
+def accessible_exercises(user, include_archived=False):
+    queryset = Exercise.objects.filter(Q(user=user) | Q(user__isnull=True))
+    if not include_archived:
+        queryset = queryset.filter(is_archived=False)
+    return queryset
 
 
 def accessible_references(user):
@@ -42,6 +45,12 @@ class ExerciseSerializer(serializers.ModelSerializer):
     best_reps = serializers.SerializerMethodField()
     best_estimated_1rm = serializers.SerializerMethodField()
     last_performed_date = serializers.SerializerMethodField()
+    last_session_id = serializers.SerializerMethodField()
+    last_session_set_count = serializers.SerializerMethodField()
+    last_session_best_weight = serializers.SerializerMethodField()
+    last_session_best_reps = serializers.SerializerMethodField()
+    last_session_best_estimated_1rm = serializers.SerializerMethodField()
+    last_session_summary_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Exercise
@@ -56,6 +65,8 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "equipment",
             "form_notes",
             "is_custom",
+            "is_archived",
+            "archived_at",
             "references",
             "reference_count",
             "recent_set_count",
@@ -63,12 +74,20 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "best_reps",
             "best_estimated_1rm",
             "last_performed_date",
+            "last_session_id",
+            "last_session_set_count",
+            "last_session_best_weight",
+            "last_session_best_reps",
+            "last_session_best_estimated_1rm",
+            "last_session_summary_label",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
             "id",
             "is_custom",
+            "is_archived",
+            "archived_at",
             "created_at",
             "updated_at",
             "references",
@@ -78,6 +97,12 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "best_reps",
             "best_estimated_1rm",
             "last_performed_date",
+            "last_session_id",
+            "last_session_set_count",
+            "last_session_best_weight",
+            "last_session_best_reps",
+            "last_session_best_estimated_1rm",
+            "last_session_summary_label",
         ]
 
     def get_secondary_muscle_group_names(self, obj):
@@ -94,6 +119,22 @@ class ExerciseSerializer(serializers.ModelSerializer):
         if not user:
             return GymSet.objects.none()
         return obj.gym_sets.filter(session__user=user).select_related("session")
+
+    def _last_session(self, obj):
+        latest = self._sets_for_user(obj).order_by("-session__date", "-session__created_at", "-created_at").first()
+        return latest.session if latest else None
+
+    def _last_session_sets(self, obj):
+        session = self._last_session(obj)
+        if not session:
+            return []
+        return list(self._sets_for_user(obj).filter(session=session).order_by("set_number", "id"))
+
+    def _best_weighted_set(self, sets):
+        weighted = [gym_set for gym_set in sets if gym_set.weight and gym_set.weight > 0]
+        if not weighted:
+            return None
+        return max(weighted, key=lambda gym_set: (gym_set.weight * (1 + gym_set.reps / 30), gym_set.weight, gym_set.reps))
 
     def _references_for_user(self, obj):
         user = self._request_user()
@@ -129,8 +170,43 @@ class ExerciseSerializer(serializers.ModelSerializer):
         return round(best_value, 1) if best_value is not None else None
 
     def get_last_performed_date(self, obj):
-        latest = self._sets_for_user(obj).order_by("-session__date", "-created_at").first()
-        return latest.session.date.isoformat() if latest else None
+        session = self._last_session(obj)
+        return session.date.isoformat() if session else None
+
+    def get_last_session_id(self, obj):
+        session = self._last_session(obj)
+        return session.id if session else None
+
+    def get_last_session_set_count(self, obj):
+        return len(self._last_session_sets(obj))
+
+    def get_last_session_best_weight(self, obj):
+        best = self._best_weighted_set(self._last_session_sets(obj))
+        return best.weight if best else None
+
+    def get_last_session_best_reps(self, obj):
+        sets = self._last_session_sets(obj)
+        if not sets:
+            return None
+        return max(gym_set.reps for gym_set in sets)
+
+    def get_last_session_best_estimated_1rm(self, obj):
+        best = self._best_weighted_set(self._last_session_sets(obj))
+        if not best:
+            return None
+        return round(best.weight * (1 + best.reps / 30), 1)
+
+    def get_last_session_summary_label(self, obj):
+        session = self._last_session(obj)
+        sets = self._last_session_sets(obj)
+        if not session or not sets:
+            return "No logged sets yet."
+        date_label = f"{session.date:%b} {session.date.day}"
+        best = self._best_weighted_set(sets)
+        if best:
+            return f"Last performed: {date_label} - {len(sets)} sets - best {best.weight:g} kg x {best.reps}"
+        best_reps = max(gym_set.reps for gym_set in sets)
+        return f"Last performed: {date_label} - {len(sets)} sets - best {best_reps} reps"
 
 
 class GymSetSerializer(serializers.ModelSerializer):
@@ -145,7 +221,7 @@ class GymSetSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and request.user.is_authenticated:
-            self.fields["exercise"].queryset = accessible_exercises(request.user)
+            self.fields["exercise"].queryset = accessible_exercises(request.user, include_archived=True)
 
 
 class GymSessionSerializer(serializers.ModelSerializer):
@@ -180,6 +256,8 @@ class GymSessionSerializer(serializers.ModelSerializer):
         if not request:
             return
         allowed_ids = set(accessible_exercises(request.user).values_list("id", flat=True))
+        if self.instance:
+            allowed_ids.update(self.instance.sets.values_list("exercise_id", flat=True))
         for item in sets:
             exercise = item.get("exercise")
             if exercise and exercise.id not in allowed_ids:
@@ -193,7 +271,7 @@ class GymSessionSerializer(serializers.ModelSerializer):
         sets_data = validated_data.pop("sets", [])
         session = GymSession.objects.create(**validated_data)
         for index, set_data in enumerate(sets_data, start=1):
-            set_data.setdefault("set_number", index)
+            set_data["set_number"] = index
             GymSet.objects.create(session=session, **set_data)
         return session
 
@@ -205,6 +283,6 @@ class GymSessionSerializer(serializers.ModelSerializer):
         if sets_data is not None:
             instance.sets.all().delete()
             for index, set_data in enumerate(sets_data, start=1):
-                set_data.setdefault("set_number", index)
+                set_data["set_number"] = index
                 GymSet.objects.create(session=instance, **set_data)
         return instance

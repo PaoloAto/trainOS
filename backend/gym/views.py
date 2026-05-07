@@ -19,15 +19,45 @@ class GymAnalyticsView(APIView):
         return Response(gym_analytics_for_user(request.user))
 
 
-class ExerciseViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+class ExerciseViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     serializer_class = ExerciseSerializer
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
-        return Exercise.objects.filter(Q(user=self.request.user) | Q(user__isnull=True)).select_related("primary_muscle_group").prefetch_related("secondary_muscle_groups", "references")
+        include_archived = self.request.query_params.get("include_archived") == "true" or self.action in {"restore", "destroy"}
+        queryset = Exercise.objects.filter(Q(user=self.request.user) | Q(user__isnull=True))
+        if not include_archived:
+            queryset = queryset.filter(is_archived=False)
+        return queryset.select_related("primary_muscle_group").prefetch_related("secondary_muscle_groups", "references")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user, is_custom=True)
+
+    def destroy(self, request, *args, **kwargs):
+        exercise = self.get_object()
+        exercise.archive()
+        serializer = self.get_serializer(exercise)
+        return Response(
+            {
+                "detail": "Exercise archived. Historical gym sessions remain intact.",
+                "exercise": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"], url_path="restore")
+    def restore(self, request, pk=None):
+        exercise = self.get_object()
+        exercise.restore()
+        serializer = self.get_serializer(exercise)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"], url_path="references", serializer_class=ExerciseReferenceSerializer)
     def create_reference(self, request, pk=None):

@@ -17,6 +17,7 @@ import {
 import { api, type Exercise, type ExerciseReferenceSource, type MuscleGroup } from "@/lib/api";
 import { formatPace, todayISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { detectReferenceSource } from "@/lib/video";
 
 export type QuickLogMode = "menu" | "check-in" | "run" | "gym" | "climb" | "project";
 
@@ -24,6 +25,7 @@ type QuickLogSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialMode?: QuickLogMode;
+  initialGymExerciseId?: number | null;
   onSaved?: () => void;
 };
 
@@ -56,15 +58,6 @@ function toRequiredNumber(value: string, fallback = 0): number {
 function optionLabel(value: string) {
   if (!value) return "None";
   return value.replace("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
-}
-
-function detectReferenceSource(value: string): ExerciseReferenceSource {
-  const lower = value.toLowerCase();
-  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
-  if (lower.includes("instagram.com")) return "instagram";
-  if (lower.includes("tiktok.com")) return "tiktok";
-  if (lower.startsWith("http")) return "website";
-  return "other";
 }
 
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
@@ -117,7 +110,7 @@ function SuccessBanner({ message }: { message: string | null }) {
   );
 }
 
-export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", onSaved }: QuickLogSheetProps) {
+export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initialGymExerciseId = null, onSaved }: QuickLogSheetProps) {
   const [mode, setMode] = useState<QuickLogMode | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const activeMode = mode ?? initialMode;
@@ -166,7 +159,7 @@ export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", onSave
           {activeMode === "menu" ? <QuickLogMenu onSelect={setMode} /> : null}
           {activeMode === "check-in" ? <CheckInForm onSuccess={handleSuccess} /> : null}
           {activeMode === "run" ? <RunForm onSuccess={handleSuccess} /> : null}
-          {activeMode === "gym" ? <GymForm onSuccess={handleSuccess} /> : null}
+          {activeMode === "gym" ? <GymForm initialExerciseId={initialGymExerciseId} onSuccess={handleSuccess} /> : null}
           {activeMode === "climb" ? <ClimbForm onSuccess={handleSuccess} /> : null}
           {activeMode === "project" ? <ProjectForm onSuccess={handleSuccess} /> : null}
         </motion.div>
@@ -290,7 +283,7 @@ function RunForm({ onSuccess }: { onSuccess: (message: string) => void }) {
   );
 }
 
-function GymForm({ onSuccess }: { onSuccess: (message: string) => void }) {
+function GymForm({ initialExerciseId, onSuccess }: { initialExerciseId?: number | null; onSuccess: (message: string) => void }) {
   const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -313,7 +306,8 @@ function GymForm({ onSuccess }: { onSuccess: (message: string) => void }) {
         if (!active) return;
         setMuscleGroups(groups);
         setExercises(exerciseList);
-        setExerciseId(String(exerciseList[0]?.id ?? ""));
+        const preferredExercise = exerciseList.find((exercise) => exercise.id === initialExerciseId);
+        setExerciseId(String(preferredExercise?.id ?? exerciseList[0]?.id ?? ""));
         setCreateExercise(exerciseList.length === 0);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "Unable to load gym setup.");
@@ -323,7 +317,7 @@ function GymForm({ onSuccess }: { onSuccess: (message: string) => void }) {
     }
     load();
     return () => { active = false; };
-  }, []);
+  }, [initialExerciseId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -361,6 +355,8 @@ function GymForm({ onSuccess }: { onSuccess: (message: string) => void }) {
     setCreateExercise(false);
   }
 
+  const selectedExercise = exercises.find((exercise) => String(exercise.id) === exerciseId);
+
   if (loading) return <div className="rounded-2xl border border-border bg-bg-elevated p-4 text-sm text-text-secondary">Loading exercises...</div>;
 
   return (
@@ -395,6 +391,11 @@ function GymForm({ onSuccess }: { onSuccess: (message: string) => void }) {
               <Field label="Weight"><Input inputMode="decimal" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="0 for bodyweight" /></Field>
               <Field label="RPE"><Input inputMode="decimal" value={rpe} onChange={(event) => setRpe(event.target.value)} placeholder="1-10" /></Field>
             </FieldGrid>
+            {selectedExercise ? (
+              <div className="rounded-2xl border border-amber bg-amber-muted p-3 text-sm leading-6 text-amber">
+                {selectedExercise.last_session_summary_label}
+              </div>
+            ) : null}
             <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="How the set moved, setup notes, or next target." /></Field>
           </FormPanel>
           <ErrorState error={error} />

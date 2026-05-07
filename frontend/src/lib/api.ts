@@ -260,6 +260,8 @@ export type Exercise = {
   equipment: string;
   form_notes: string;
   is_custom: boolean;
+  is_archived: boolean;
+  archived_at: string | null;
   references: ExerciseReference[];
   reference_count: number;
   recent_set_count: number;
@@ -267,6 +269,12 @@ export type Exercise = {
   best_reps: number | null;
   best_estimated_1rm: number | null;
   last_performed_date: string | null;
+  last_session_id: number | null;
+  last_session_set_count: number;
+  last_session_best_weight: number | null;
+  last_session_best_reps: number | null;
+  last_session_best_estimated_1rm: number | null;
+  last_session_summary_label: string;
   created_at: string;
   updated_at: string;
 };
@@ -278,6 +286,11 @@ export type ExerciseInput = {
   movement_pattern?: string;
   equipment?: string;
   form_notes?: string;
+};
+
+export type ExerciseArchiveResponse = {
+  detail: string;
+  exercise: Exercise;
 };
 
 export type GymSet = {
@@ -598,7 +611,8 @@ export const api = {
   },
 
   exercises: {
-    list: () => request<Exercise[]>("/api/gym/exercises/"),
+    list: (includeArchived = false) =>
+      request<Exercise[]>(`/api/gym/exercises/${includeArchived ? "?include_archived=true" : ""}`),
 
     create: (input: ExerciseInput) =>
       mutate<Exercise>("/api/gym/exercises/", "POST", input),
@@ -607,6 +621,12 @@ export const api = {
 
     update: (id: number, input: Partial<ExerciseInput>) =>
       mutate<Exercise>(`/api/gym/exercises/${id}/`, "PATCH", input),
+
+    archive: (id: number) =>
+      mutate<ExerciseArchiveResponse>(`/api/gym/exercises/${id}/`, "DELETE"),
+
+    restore: (id: number) =>
+      mutate<Exercise>(`/api/gym/exercises/${id}/restore/`, "POST"),
   },
 
   exerciseReferences: {
