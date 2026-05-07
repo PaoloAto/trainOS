@@ -1,10 +1,12 @@
 import shutil
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from running.models import ImportBatch, RunActivity
@@ -92,3 +94,128 @@ class RunningImportAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["detail"], UNSUPPORTED_PHASE_3A_MESSAGE)
         self.assertEqual(ImportBatch.objects.filter(user=self.user, status=ImportBatch.Status.FAILED).count(), 1)
+
+
+class RunningAnalyticsAPITests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="analytics-runner",
+            email="analytics@example.com",
+            password="password",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_no_runs_response(self):
+        response = self.client.get("/api/running/analytics/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["total_runs"], 0)
+        self.assertEqual(response.data["summary"]["total_distance_km"], 0)
+        self.assertEqual(response.data["summary"]["avg_pace_seconds_per_km"], None)
+        self.assertEqual(response.data["summary"]["average_distance_km"], 0)
+        self.assertEqual(response.data["summary"]["longest_run_distance_km"], 0)
+        self.assertIsNone(response.data["summary"]["latest_run_date"])
+        self.assertEqual(response.data["data_quality"]["confidence"], "low")
+        self.assertEqual(len(response.data["weekly_distance_trend"]), 8)
+        self.assertEqual(len(response.data["monthly_distance_trend"]), 6)
+        self.assertEqual(response.data["consistency"]["consistency_label"], "No data")
+        self.assertEqual(response.data["marathon_baseline"]["longest_distance_km"], 0)
+
+    def test_one_imported_half_marathon_baseline(self):
+        run = RunActivity.objects.create(
+            user=self.user,
+            title="Nat Geo Run",
+            started_at=timezone.now() - timedelta(days=1),
+            distance_km=21.01,
+            duration_seconds=8953,
+            avg_hr=148,
+            max_hr=172,
+            elevation_gain_m=42,
+            run_type=RunActivity.RunType.OTHER,
+            source="strava_export",
+            source_activity_id="nat-geo-run",
+            raw_metadata={"format": "tcx", "trackpoint_count": 8751},
+        )
+
+        response = self.client.get("/api/running/analytics/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["total_runs"], 1)
+        self.assertEqual(response.data["summary"]["imported_run_count"], 1)
+        self.assertEqual(response.data["summary"]["manual_run_count"], 0)
+        self.assertEqual(response.data["summary"]["average_distance_km"], 21.01)
+        self.assertEqual(response.data["summary"]["longest_run_distance_km"], 21.01)
+        self.assertIsNotNone(response.data["summary"]["latest_run_date"])
+        self.assertEqual(response.data["longest_run"]["id"], run.id)
+        self.assertEqual(response.data["longest_run"]["distance_km"], 21.01)
+        self.assertEqual(response.data["longest_run"]["raw_metadata"]["trackpoint_count"], 8751)
+        self.assertEqual(len(response.data["weekly_distance_trend"]), 8)
+        self.assertEqual(len(response.data["monthly_distance_trend"]), 6)
+        self.assertTrue(any(item["distance_km"] == 21.01 for item in response.data["weekly_distance_trend"]))
+        self.assertEqual(response.data["marathon_baseline"]["longest_distance_km"], 21.01)
+        self.assertEqual(response.data["marathon_baseline"]["distance_gap_to_marathon_km"], 21.19)
+        self.assertIsNotNone(response.data["marathon_baseline"]["marathon_time_at_longest_run_pace_seconds"])
+        self.assertTrue(response.data["marathon_baseline"]["half_marathon_benchmark"])
+        self.assertEqual(response.data["marathon_baseline"]["baseline_label"], "Half-marathon benchmark")
+        self.assertIn("half-marathon-distance benchmark", response.data["marathon_baseline"]["baseline_note"])
+        self.assertEqual(response.data["consistency"]["consistency_label"], "Starting baseline")
+        self.assertEqual(response.data["data_quality"]["confidence"], "low")
+        self.assertIn("half-marathon-distance benchmark", " ".join(response.data["insights"]))
+
+    def test_multiple_runs_across_weeks_weighted_trends_and_consistency(self):
+        now = timezone.now()
+        RunActivity.objects.create(
+            user=self.user,
+            title="Current week easy",
+            started_at=now,
+            distance_km=5,
+            duration_seconds=1800,
+            run_type=RunActivity.RunType.EASY,
+            source="manual",
+        )
+        RunActivity.objects.create(
+            user=self.user,
+            title="Current week aerobic",
+            started_at=now - timedelta(hours=6),
+            distance_km=5,
+            duration_seconds=2100,
+            run_type=RunActivity.RunType.EASY,
+            source="manual",
+        )
+        RunActivity.objects.create(
+            user=self.user,
+            title="Two weeks ago",
+            started_at=now - timedelta(weeks=2),
+            distance_km=10,
+            duration_seconds=4000,
+            run_type=RunActivity.RunType.LONG_RUN,
+            source="manual",
+        )
+        RunActivity.objects.create(
+            user=self.user,
+            title="Four weeks ago",
+            started_at=now - timedelta(weeks=4),
+            distance_km=15,
+            duration_seconds=6000,
+            run_type=RunActivity.RunType.LONG_RUN,
+            source="manual",
+        )
+
+        response = self.client.get("/api/running/analytics/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["total_runs"], 4)
+        self.assertEqual(response.data["summary"]["manual_run_count"], 4)
+        self.assertEqual(response.data["summary"]["total_distance_km"], 35)
+        self.assertEqual(response.data["summary"]["average_distance_km"], 8.75)
+        self.assertEqual(response.data["current_week"]["week_distance_km"], 10)
+        self.assertEqual(response.data["current_week"]["week_run_count"], 2)
+        self.assertEqual(response.data["current_week"]["week_avg_pace_seconds_per_km"], 390)
+        self.assertEqual(len(response.data["weekly_distance_trend"]), 8)
+        self.assertEqual(len(response.data["monthly_distance_trend"]), 6)
+        self.assertEqual(response.data["consistency"]["active_weeks_last_8"], 3)
+        self.assertEqual(response.data["consistency"]["consistency_label"], "Building consistency")
+        self.assertEqual(response.data["data_quality"]["confidence"], "medium")
+        self.assertEqual(len(response.data["long_run_progression"]), 2)
+        self.assertTrue(all("source" in item for item in response.data["recent_pace_trend"]))

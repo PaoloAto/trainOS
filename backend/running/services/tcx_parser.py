@@ -59,15 +59,6 @@ def _child_text(element, name: str) -> str | None:
     return value or None
 
 
-def _descendant_text(element, name: str) -> str | None:
-    for node in element.iter():
-        if _local_name(node.tag) == name and node.text:
-            value = node.text.strip()
-            if value:
-                return value
-    return None
-
-
 def _heart_rate_value(element, container_name: str) -> float | None:
     for node in element.iter():
         if _local_name(node.tag) != container_name:
@@ -193,6 +184,7 @@ def parse_tcx(file_obj: BinaryIO) -> ParsedTCXRun:
 
     metadata = {
         "format": "tcx",
+        "parser_version": "phase_3a_5",
         "sport": sport,
         "lap_count": len(laps),
         "trackpoint_count": len(trackpoints),

@@ -15,6 +15,17 @@ export function formatDuration(seconds: number) {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
+export function formatExactDuration(seconds: number | null | undefined) {
+  if (!seconds || seconds <= 0) return "--";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
 export function formatPace(secondsPerKm: number | null | undefined) {
   if (!secondsPerKm) return "--";
   const totalSeconds = Math.round(secondsPerKm);

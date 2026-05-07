@@ -2,9 +2,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status, viewsets
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import ImportBatch, RunActivity
 from .serializers import ImportBatchSerializer, ImportResultSerializer, RunActivitySerializer
+from .services.analytics_service import running_analytics_for_user
 from .services.import_service import import_running_file
 
 
@@ -53,3 +55,8 @@ class ImportBatchViewSet(viewsets.GenericViewSet):
 
         serializer = ImportResultSerializer(result)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class RunningAnalyticsView(APIView):
+    def get(self, request):
+        return Response(running_analytics_for_user(request.user))

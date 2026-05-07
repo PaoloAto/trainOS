@@ -96,7 +96,12 @@ export type RunImportSummary = Pick<
   | "distance_km"
   | "duration_seconds"
   | "avg_pace_seconds_per_km"
+  | "avg_hr"
+  | "max_hr"
+  | "elevation_gain_m"
   | "source"
+  | "raw_metadata"
+  | "created_at"
 >;
 
 export type RunningImportBatch = {
@@ -118,6 +123,107 @@ export type RunningImportResult = {
   message: string;
   batch: RunningImportBatch;
   created_run: RunImportSummary | null;
+};
+
+export type RunningAnalyticsRunSummary = {
+  id: number;
+  title: string;
+  started_at: string;
+  distance_km: number;
+  duration_seconds: number;
+  avg_pace_seconds_per_km: number | null;
+  source: string;
+  avg_hr: number | null;
+  max_hr: number | null;
+  elevation_gain_m: number | null;
+  raw_metadata: Record<string, unknown>;
+};
+
+export type RunningLongRunSummary = {
+  id: number;
+  started_at: string;
+  date: string;
+  distance_km: number;
+  duration_seconds: number;
+  avg_pace_seconds_per_km: number | null;
+  source: string;
+};
+
+export type RunningWeeklyTrendPoint = {
+  week_start: string;
+  distance_km: number;
+  run_count: number;
+  duration_seconds: number;
+  avg_pace_seconds_per_km: number | null;
+};
+
+export type RunningMonthlyTrendPoint = {
+  month_start: string;
+  distance_km: number;
+  run_count: number;
+  duration_seconds: number;
+};
+
+export type RunningPaceTrendPoint = {
+  id: number;
+  date: string;
+  distance_km: number;
+  avg_pace_seconds_per_km: number | null;
+  source: string;
+};
+
+export type RunningAnalytics = {
+  summary: {
+    total_runs: number;
+    total_distance_km: number;
+    total_duration_seconds: number;
+    avg_pace_seconds_per_km: number | null;
+    imported_run_count: number;
+    manual_run_count: number;
+    average_distance_km: number;
+    longest_run_distance_km: number;
+    latest_run_date: string | null;
+  };
+  current_week: {
+    week_start: string;
+    week_distance_km: number;
+    week_run_count: number;
+    week_duration_seconds: number;
+    week_avg_pace_seconds_per_km: number | null;
+  };
+  current_month: {
+    month_distance_km: number;
+    month_run_count: number;
+    month_duration_seconds: number;
+    month_avg_pace_seconds_per_km: number | null;
+  };
+  longest_run: RunningAnalyticsRunSummary | null;
+  recent_long_runs: RunningLongRunSummary[];
+  weekly_distance_trend: RunningWeeklyTrendPoint[];
+  monthly_distance_trend: RunningMonthlyTrendPoint[];
+  recent_pace_trend: RunningPaceTrendPoint[];
+  long_run_progression: RunningLongRunSummary[];
+  marathon_baseline: {
+    longest_distance_km: number;
+    distance_gap_to_marathon_km: number;
+    marathon_time_at_longest_run_pace_seconds: number | null;
+    half_marathon_benchmark: boolean;
+    baseline_label: string;
+    baseline_note: string;
+  };
+  consistency: {
+    runs_last_7_days: number;
+    runs_last_30_days: number;
+    active_weeks_last_8: number;
+    consistency_label: "No data" | "Starting baseline" | "Building consistency" | "Consistent";
+    consistency_note: string;
+  };
+  data_quality: {
+    confidence: "low" | "medium" | "high";
+    reason: string;
+    suggested_next_action: string;
+  };
+  insights: string[];
 };
 
 export type MuscleGroup = {
@@ -354,6 +460,10 @@ export function getRunningImport(id: number): Promise<RunningImportBatch> {
   return request<RunningImportBatch>(`/api/running/imports/${id}/`);
 }
 
+export function getRunningAnalytics(): Promise<RunningAnalytics> {
+  return request<RunningAnalytics>("/api/running/analytics/");
+}
+
 export const api = {
   health: () => request<HealthResponse>("/api/health/"),
 
@@ -399,6 +509,10 @@ export const api = {
     list: getRunningImports,
     retrieve: getRunningImport,
     upload: uploadRunningImport,
+  },
+
+  runningAnalytics: {
+    get: getRunningAnalytics,
   },
 
   muscleGroups: {

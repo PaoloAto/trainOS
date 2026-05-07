@@ -48,7 +48,12 @@ class RunImportSummarySerializer(serializers.ModelSerializer):
             "distance_km",
             "duration_seconds",
             "avg_pace_seconds_per_km",
+            "avg_hr",
+            "max_hr",
+            "elevation_gain_m",
             "source",
+            "raw_metadata",
+            "created_at",
         ]
 
 
