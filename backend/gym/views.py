@@ -1,13 +1,22 @@
 from django.db.models import Count, Q
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Exercise, GymSession, MuscleGroup
-from .serializers import ExerciseSerializer, GymSessionSerializer, MuscleGroupSerializer
+from .models import Exercise, ExerciseReference, GymSession, MuscleGroup
+from .serializers import ExerciseReferenceSerializer, ExerciseSerializer, GymSessionSerializer, MuscleGroupSerializer
+from .services.analytics_service import gym_analytics_for_user
 
 
 class MuscleGroupViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = MuscleGroupSerializer
     queryset = MuscleGroup.objects.all()
+
+
+class GymAnalyticsView(APIView):
+    def get(self, request):
+        return Response(gym_analytics_for_user(request.user))
 
 
 class ExerciseViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
@@ -19,6 +28,25 @@ class ExerciseViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Ret
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user, is_custom=True)
+
+    @action(detail=True, methods=["post"], url_path="references", serializer_class=ExerciseReferenceSerializer)
+    def create_reference(self, request, pk=None):
+        exercise = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(exercise=exercise, user=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ExerciseReferenceViewSet(mixins.UpdateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    serializer_class = ExerciseReferenceSerializer
+    http_method_names = ["patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return ExerciseReference.objects.filter(
+            Q(user=self.request.user)
+            | Q(exercise__user=self.request.user)
+        ).select_related("exercise")
 
 
 class GymSessionViewSet(viewsets.ModelViewSet):

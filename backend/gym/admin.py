@@ -25,9 +25,9 @@ class ExerciseAdmin(admin.ModelAdmin):
 
 @admin.register(ExerciseReference)
 class ExerciseReferenceAdmin(admin.ModelAdmin):
-    list_display = ("exercise", "source", "title", "url", "created_at")
+    list_display = ("exercise", "user", "source", "title", "url", "created_at")
     list_filter = ("source", "created_at")
-    search_fields = ("exercise__name", "title", "url", "notes")
+    search_fields = ("exercise__name", "user__username", "title", "url", "notes")
 
 
 class GymSetInline(admin.TabularInline):

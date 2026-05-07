@@ -63,6 +63,7 @@ class ExerciseReference(models.Model):
         OTHER = "other", "Other"
 
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="references")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="exercise_references")
     url = models.URLField()
     source = models.CharField(max_length=24, choices=Source.choices, default=Source.OTHER)
     title = models.CharField(max_length=180, blank=True)

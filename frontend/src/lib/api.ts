@@ -231,6 +231,24 @@ export type MuscleGroup = {
   name: string;
 };
 
+export type ExerciseReferenceSource = "youtube" | "instagram" | "tiktok" | "website" | "other";
+
+export type ExerciseReference = {
+  id: number;
+  url: string;
+  source: ExerciseReferenceSource;
+  title: string;
+  notes: string;
+  created_at: string;
+};
+
+export type ExerciseReferenceInput = {
+  url: string;
+  source: ExerciseReferenceSource;
+  title?: string;
+  notes?: string;
+};
+
 export type Exercise = {
   id: number;
   name: string;
@@ -242,6 +260,13 @@ export type Exercise = {
   equipment: string;
   form_notes: string;
   is_custom: boolean;
+  references: ExerciseReference[];
+  reference_count: number;
+  recent_set_count: number;
+  best_weight: number | null;
+  best_reps: number | null;
+  best_estimated_1rm: number | null;
+  last_performed_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -295,6 +320,55 @@ export type GymSessionInput = {
   duration_minutes?: number | null;
   notes?: string;
   sets?: GymSetInput[];
+};
+
+export type GymAnalytics = {
+  summary: {
+    total_sessions: number;
+    total_sets: number;
+    total_exercises_used: number;
+    sessions_this_week: number;
+    sessions_this_month: number;
+    sets_this_week: number;
+    sets_this_month: number;
+  };
+  muscle_coverage_this_week: Array<{
+    muscle_group_id: number;
+    muscle_group_name: string;
+    primary_set_count: number;
+    secondary_set_count: number;
+    total_set_count: number;
+  }>;
+  split_distribution_this_month: Array<{
+    split_type: string;
+    session_count: number;
+  }>;
+  weekly_session_trend: Array<{
+    week_start: string;
+    session_count: number;
+    set_count: number;
+  }>;
+  top_exercises_by_sets: Array<{
+    exercise_id: number;
+    exercise_name: string;
+    primary_muscle_group_name: string;
+    set_count: number;
+  }>;
+  top_exercises_by_volume: Array<{
+    exercise_id: number;
+    exercise_name: string;
+    volume: number;
+    set_count: number;
+  }>;
+  recent_sessions: Array<{
+    id: number;
+    date: string;
+    split_type: string;
+    duration_minutes: number | null;
+    set_count: number;
+    exercise_names: string[];
+  }>;
+  deterministic_insights: string[];
 };
 
 export type ClimbAttempt = {
@@ -519,6 +593,10 @@ export const api = {
     list: () => request<MuscleGroup[]>("/api/gym/muscle-groups/"),
   },
 
+  gymAnalytics: {
+    get: () => request<GymAnalytics>("/api/gym/analytics/"),
+  },
+
   exercises: {
     list: () => request<Exercise[]>("/api/gym/exercises/"),
 
@@ -529,6 +607,17 @@ export const api = {
 
     update: (id: number, input: Partial<ExerciseInput>) =>
       mutate<Exercise>(`/api/gym/exercises/${id}/`, "PATCH", input),
+  },
+
+  exerciseReferences: {
+    create: (exerciseId: number, input: ExerciseReferenceInput) =>
+      mutate<ExerciseReference>(`/api/gym/exercises/${exerciseId}/references/`, "POST", input),
+
+    update: (referenceId: number, input: Partial<ExerciseReferenceInput>) =>
+      mutate<ExerciseReference>(`/api/gym/references/${referenceId}/`, "PATCH", input),
+
+    delete: (referenceId: number) =>
+      mutate<void>(`/api/gym/references/${referenceId}/`, "DELETE"),
   },
 
   gymSessions: {

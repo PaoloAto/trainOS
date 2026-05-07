@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { api, type Exercise, type MuscleGroup } from "@/lib/api";
+import { api, type Exercise, type ExerciseReferenceSource, type MuscleGroup } from "@/lib/api";
 import { formatPace, todayISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,7 @@ const runTypeOptions = ["easy", "long_run", "tempo", "interval", "recovery", "ra
 const splitOptions = ["push", "pull", "legs", "upper", "lower", "full_body", "custom"];
 const movementOptions = ["push", "pull", "squat", "hinge", "lunge", "carry", "rotation", "isolation", "core", "other"];
 const equipmentOptions = ["barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"];
+const referenceSourceOptions: ExerciseReferenceSource[] = ["youtube", "instagram", "tiktok", "website", "other"];
 const sessionTypeOptions = ["bouldering", "top_rope", "sport", "trad", "training", "other"];
 const gradeSystemOptions = ["v_scale", "yds", "font", "other"];
 const resultOptions = ["flash", "send", "repeat", "project", "fail", "attempt", "clean", "take", "fall", "complete"];
@@ -55,6 +56,15 @@ function toRequiredNumber(value: string, fallback = 0): number {
 function optionLabel(value: string) {
   if (!value) return "None";
   return value.replace("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function detectReferenceSource(value: string): ExerciseReferenceSource {
+  const lower = value.toLowerCase();
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
+  if (lower.includes("instagram.com")) return "instagram";
+  if (lower.includes("tiktok.com")) return "tiktok";
+  if (lower.startsWith("http")) return "website";
+  return "other";
 }
 
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
@@ -400,8 +410,20 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
   const [primaryGroup, setPrimaryGroup] = useState(() => String(muscleGroups[0]?.id ?? ""));
   const [equipment, setEquipment] = useState("dumbbell");
   const [movement, setMovement] = useState("pull");
+  const [referenceUrl, setReferenceUrl] = useState("");
+  const [referenceSource, setReferenceSource] = useState<ExerciseReferenceSource>("youtube");
+  const [referenceTitle, setReferenceTitle] = useState("");
+  const [referenceNotes, setReferenceNotes] = useState("");
+  const [referenceSourceTouched, setReferenceSourceTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handleReferenceUrlChange(value: string) {
+    setReferenceUrl(value);
+    if (!referenceSourceTouched) {
+      setReferenceSource(detectReferenceSource(value));
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -414,6 +436,14 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
         equipment,
         movement_pattern: movement,
       });
+      if (referenceUrl.trim()) {
+        await api.exerciseReferences.create(exercise.id, {
+          url: referenceUrl.trim(),
+          source: referenceSource,
+          title: referenceTitle,
+          notes: referenceNotes,
+        });
+      }
       onCreated(exercise);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create exercise.");
@@ -434,6 +464,19 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
         <Field label="Equipment"><select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>{equipmentOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
         <Field label="Pattern"><select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>{movementOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
       </FieldGrid>
+      <div className="space-y-3 rounded-2xl border border-border bg-bg-base/40 p-3">
+        <FormEyebrow>Optional Reference</FormEyebrow>
+        <Field label="Video or cue URL"><Input value={referenceUrl} onChange={(event) => handleReferenceUrlChange(event.target.value)} placeholder="YouTube, Reel, TikTok, or website" /></Field>
+        {referenceUrl ? (
+          <>
+            <FieldGrid>
+              <Field label="Source"><select className={selectClass} value={referenceSource} onChange={(event) => { setReferenceSource(event.target.value as ExerciseReferenceSource); setReferenceSourceTouched(true); }}>{referenceSourceOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+              <Field label="Title"><Input value={referenceTitle} onChange={(event) => setReferenceTitle(event.target.value)} placeholder="Pull-up form cue" /></Field>
+            </FieldGrid>
+            <Field label="Notes"><textarea className={textareaClass} value={referenceNotes} onChange={(event) => setReferenceNotes(event.target.value)} placeholder="What should you remember before training this?" /></Field>
+          </>
+        ) : null}
+      </div>
       <ErrorState error={error} />
       <div className={cn("grid gap-3", onCancel ? "grid-cols-2" : "grid-cols-1")}>
         {onCancel ? <Button type="button" variant="secondary" className="h-11 rounded-2xl" onClick={onCancel}>Cancel</Button> : null}
