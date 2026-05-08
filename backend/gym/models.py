@@ -132,3 +132,70 @@ class GymSet(models.Model):
 
     def __str__(self):
         return f"{self.exercise} x {self.reps}"
+
+
+class WorkoutTemplate(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="workout_templates")
+    name = models.CharField(max_length=160)
+    split_type = models.CharField(max_length=24, choices=GymSession.SplitType.choices)
+    notes = models.TextField(blank=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["is_archived", "split_type", "name"]
+
+    def __str__(self):
+        return self.name
+
+    def archive(self):
+        if not self.is_archived:
+            self.is_archived = True
+            self.archived_at = timezone.now()
+            self.save(update_fields=["is_archived", "archived_at", "updated_at"])
+
+    def restore(self):
+        if self.is_archived:
+            self.is_archived = False
+            self.archived_at = None
+            self.save(update_fields=["is_archived", "archived_at", "updated_at"])
+
+
+class WorkoutTemplateExercise(models.Model):
+    template = models.ForeignKey(WorkoutTemplate, on_delete=models.CASCADE, related_name="items")
+    exercise = models.ForeignKey(Exercise, on_delete=models.PROTECT, related_name="template_items")
+    order = models.PositiveIntegerField()
+    target_sets = models.PositiveIntegerField(default=3)
+    target_reps_low = models.PositiveIntegerField(null=True, blank=True)
+    target_reps_high = models.PositiveIntegerField(null=True, blank=True)
+    suggested_weight = models.FloatField(null=True, blank=True)
+    rest_seconds = models.PositiveIntegerField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.template} - {self.order}. {self.exercise}"
+
+
+class ActiveWorkout(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="active_workout")
+    template = models.ForeignKey(WorkoutTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name="active_workouts")
+    started_at = models.DateTimeField(default=timezone.now)
+    current_exercise_index = models.PositiveIntegerField(default=0)
+    current_set_index = models.PositiveIntegerField(default=0)
+    logged_sets = models.JSONField(default=list)
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        template_name = self.template.name if self.template else "Untitled workout"
+        return f"{self.user} - {template_name}"

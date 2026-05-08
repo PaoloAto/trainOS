@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup
+from .models import ActiveWorkout, Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup, WorkoutTemplate, WorkoutTemplateExercise
 
 
 @admin.register(MuscleGroup)
@@ -53,3 +53,34 @@ class GymSetAdmin(admin.ModelAdmin):
     list_display = ("session", "exercise", "set_number", "weight", "reps", "rpe")
     list_filter = ("exercise", "session__split_type", "session__date")
     search_fields = ("exercise__name", "session__user__username", "notes")
+
+
+class WorkoutTemplateExerciseInline(admin.TabularInline):
+    model = WorkoutTemplateExercise
+    extra = 0
+
+
+@admin.register(WorkoutTemplate)
+class WorkoutTemplateAdmin(admin.ModelAdmin):
+    list_display = ("user", "name", "split_type", "is_archived", "item_count", "created_at", "updated_at")
+    list_filter = ("split_type", "is_archived", "created_at")
+    search_fields = ("user__username", "name", "notes", "items__exercise__name")
+    inlines = (WorkoutTemplateExerciseInline,)
+
+    @admin.display(description="Items")
+    def item_count(self, obj):
+        return obj.items.count()
+
+
+@admin.register(WorkoutTemplateExercise)
+class WorkoutTemplateExerciseAdmin(admin.ModelAdmin):
+    list_display = ("template", "exercise", "order", "target_sets", "target_reps_low", "target_reps_high", "suggested_weight", "rest_seconds")
+    list_filter = ("template__split_type", "exercise")
+    search_fields = ("template__name", "exercise__name", "notes")
+
+
+@admin.register(ActiveWorkout)
+class ActiveWorkoutAdmin(admin.ModelAdmin):
+    list_display = ("user", "template", "started_at", "current_exercise_index", "current_set_index", "updated_at")
+    list_filter = ("started_at", "updated_at")
+    search_fields = ("user__username", "template__name", "notes")

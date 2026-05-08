@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from gym.models import Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup
+from gym.models import ActiveWorkout, Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup, WorkoutTemplate, WorkoutTemplateExercise
 
 
 class GymAnalyticsAPITests(TestCase):
@@ -316,3 +316,195 @@ class GymSessionEditingAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+class WorkoutTemplateAPITests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="template-owner", password="password")
+        self.other_user = get_user_model().objects.create_user(username="template-other", password="password")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.back = MuscleGroup.objects.get(name="Back")
+        self.chest = MuscleGroup.objects.get(name="Chest")
+        self.pull_up = Exercise.objects.create(
+            user=self.user,
+            name="Pull-up",
+            primary_muscle_group=self.back,
+            movement_pattern=Exercise.MovementPattern.PULL,
+            equipment=Exercise.Equipment.BODYWEIGHT,
+        )
+        self.row = Exercise.objects.create(
+            user=self.user,
+            name="Barbell Row",
+            primary_muscle_group=self.back,
+            movement_pattern=Exercise.MovementPattern.PULL,
+            equipment=Exercise.Equipment.BARBELL,
+        )
+        self.other_exercise = Exercise.objects.create(user=self.other_user, name="Other Bench", primary_muscle_group=self.chest)
+
+    def test_create_edit_archive_and_order_renumbering(self):
+        response = self.client.post(
+            "/api/gym/templates/",
+            {
+                "name": "Pull Day",
+                "split_type": GymSession.SplitType.PULL,
+                "notes": "Back and biceps.",
+                "items": [
+                    {"exercise": self.pull_up.id, "order": 9, "target_sets": 3, "target_reps_low": 6, "target_reps_high": 8},
+                    {"exercise": self.row.id, "order": 2, "target_sets": 4, "target_reps_low": 8, "target_reps_high": 10},
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        template_id = response.data["id"]
+        self.assertEqual([item["order"] for item in response.data["items"]], [1, 2])
+        self.assertEqual(response.data["exercise_count"], 2)
+        self.assertEqual(response.data["target_set_count"], 7)
+
+        patch_response = self.client.patch(
+            f"/api/gym/templates/{template_id}/",
+            {
+                "name": "Pull Day Edited",
+                "items": [
+                    {"exercise": self.row.id, "order": 5, "target_sets": 2, "target_reps_low": 8, "target_reps_high": 12},
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(len(patch_response.data["items"]), 1)
+        self.assertEqual(patch_response.data["items"][0]["order"], 1)
+        self.assertEqual(patch_response.data["items"][0]["exercise"], self.row.id)
+
+        delete_response = self.client.delete(f"/api/gym/templates/{template_id}/")
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertTrue(WorkoutTemplate.objects.get(id=template_id).is_archived)
+
+        active_list = self.client.get("/api/gym/templates/")
+        self.assertFalse(any(item["id"] == template_id for item in active_list.data))
+
+        restore_response = self.client.post(f"/api/gym/templates/{template_id}/restore/")
+        self.assertEqual(restore_response.status_code, 200)
+        self.assertFalse(WorkoutTemplate.objects.get(id=template_id).is_archived)
+
+    def test_archived_and_inaccessible_exercises_are_rejected(self):
+        self.pull_up.archive()
+        archived_response = self.client.post(
+            "/api/gym/templates/",
+            {
+                "name": "Invalid Pull Day",
+                "split_type": GymSession.SplitType.PULL,
+                "items": [{"exercise": self.pull_up.id, "order": 1, "target_sets": 3}],
+            },
+            format="json",
+        )
+        self.assertEqual(archived_response.status_code, 400)
+
+        inaccessible_response = self.client.post(
+            "/api/gym/templates/",
+            {
+                "name": "Invalid Other Day",
+                "split_type": GymSession.SplitType.CUSTOM,
+                "items": [{"exercise": self.other_exercise.id, "order": 1, "target_sets": 3}],
+            },
+            format="json",
+        )
+        self.assertEqual(inaccessible_response.status_code, 400)
+
+    def test_template_user_scoping(self):
+        template = WorkoutTemplate.objects.create(user=self.other_user, name="Other Template", split_type=GymSession.SplitType.PUSH)
+        response = self.client.get(f"/api/gym/templates/{template.id}/")
+        self.assertEqual(response.status_code, 404)
+
+
+class ActiveWorkoutAPITests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="active-owner", password="password")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.back = MuscleGroup.objects.get(name="Back")
+        self.pull_up = Exercise.objects.create(user=self.user, name="Pull-up", primary_muscle_group=self.back, equipment=Exercise.Equipment.BODYWEIGHT)
+        self.row = Exercise.objects.create(user=self.user, name="Barbell Row", primary_muscle_group=self.back, equipment=Exercise.Equipment.BARBELL)
+        self.template = WorkoutTemplate.objects.create(user=self.user, name="Pull Day", split_type=GymSession.SplitType.PULL)
+        WorkoutTemplateExercise.objects.create(template=self.template, exercise=self.pull_up, order=1, target_sets=2, target_reps_low=6, target_reps_high=8)
+        WorkoutTemplateExercise.objects.create(template=self.template, exercise=self.row, order=2, target_sets=3, target_reps_low=8, target_reps_high=10)
+
+    def test_get_active_workout_without_active_returns_json_null(self):
+        response = self.client.get("/api/gym/active-workout/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(response.content, b"null")
+        self.assertIsNone(response.json())
+
+    def test_start_resume_update_and_block_second_active_workout(self):
+        start_response = self.client.post(f"/api/gym/templates/{self.template.id}/start/")
+        self.assertEqual(start_response.status_code, 201)
+        self.assertEqual(start_response.data["template_summary"]["name"], "Pull Day")
+        self.assertEqual(len(start_response.data["template_items"]), 2)
+
+        second_start = self.client.post(f"/api/gym/templates/{self.template.id}/start/")
+        self.assertEqual(second_start.status_code, 400)
+        self.assertIn("already have an active workout", second_start.data["detail"])
+
+        patch_response = self.client.patch(
+            "/api/gym/active-workout/",
+            {
+                "current_exercise_index": 1,
+                "current_set_index": 0,
+                "logged_sets": [
+                    {
+                        "exercise": self.pull_up.id,
+                        "template_item": self.template.items.first().id,
+                        "set_number": 1,
+                        "weight": 0,
+                        "reps": 8,
+                        "rpe": 8,
+                        "notes": "Clean.",
+                    }
+                ],
+                "notes": "In progress.",
+            },
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(len(patch_response.data["logged_sets"]), 1)
+
+        resume_response = self.client.get("/api/gym/active-workout/")
+        self.assertEqual(resume_response.status_code, 200)
+        self.assertEqual(resume_response.data["current_exercise_index"], 1)
+
+    def test_complete_creates_session_sets_and_clears_active_workout(self):
+        active = ActiveWorkout.objects.create(
+            user=self.user,
+            template=self.template,
+            current_exercise_index=1,
+            current_set_index=1,
+            logged_sets=[
+                {"exercise": self.pull_up.id, "template_item": self.template.items.first().id, "set_number": 1, "weight": 0, "reps": 8, "rpe": 8, "notes": ""},
+                {"exercise": self.row.id, "template_item": self.template.items.last().id, "set_number": 1, "weight": 60, "reps": 8, "rpe": 8, "notes": ""},
+            ],
+            notes="Finished strong.",
+        )
+
+        response = self.client.post("/api/gym/active-workout/complete/")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(ActiveWorkout.objects.filter(id=active.id).exists())
+        session = GymSession.objects.get(id=response.data["id"])
+        self.assertEqual(session.split_type, GymSession.SplitType.PULL)
+        self.assertEqual(session.notes, "Finished strong.")
+        self.assertEqual([gym_set.set_number for gym_set in session.sets.order_by("set_number")], [1, 2])
+        self.assertEqual(session.sets.count(), 2)
+
+    def test_cancel_clears_without_creating_session(self):
+        ActiveWorkout.objects.create(user=self.user, template=self.template)
+
+        response = self.client.delete("/api/gym/active-workout/")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(ActiveWorkout.objects.filter(user=self.user).exists())
+        self.assertEqual(GymSession.objects.filter(user=self.user).count(), 0)

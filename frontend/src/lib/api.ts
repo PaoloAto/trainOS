@@ -384,6 +384,94 @@ export type GymAnalytics = {
   deterministic_insights: string[];
 };
 
+export type WorkoutLoggedSet = {
+  exercise: number;
+  template_item?: number | null;
+  set_number: number;
+  weight?: number | null;
+  reps: number;
+  rpe?: number | null;
+  notes?: string;
+};
+
+export type WorkoutTemplateExercise = {
+  id: number;
+  exercise: number;
+  exercise_name: string;
+  primary_muscle_group_name: string;
+  equipment: string;
+  movement_pattern: string;
+  reference_count: number;
+  references: ExerciseReference[];
+  last_session_summary_label: string;
+  order: number;
+  target_sets: number;
+  target_reps_low: number | null;
+  target_reps_high: number | null;
+  suggested_weight: number | null;
+  rest_seconds: number | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkoutTemplateExerciseInput = {
+  exercise: number;
+  order: number;
+  target_sets: number;
+  target_reps_low?: number | null;
+  target_reps_high?: number | null;
+  suggested_weight?: number | null;
+  rest_seconds?: number | null;
+  notes?: string;
+};
+
+export type WorkoutTemplate = {
+  id: number;
+  name: string;
+  split_type: string;
+  notes: string;
+  is_archived: boolean;
+  archived_at: string | null;
+  items: WorkoutTemplateExercise[];
+  exercise_count: number;
+  target_set_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkoutTemplateInput = {
+  name: string;
+  split_type: string;
+  notes?: string;
+  items?: WorkoutTemplateExerciseInput[];
+};
+
+export type WorkoutTemplateArchiveResponse = {
+  detail: string;
+  template: WorkoutTemplate;
+};
+
+export type ActiveWorkout = {
+  id: number;
+  template: number | null;
+  template_summary: {
+    id: number;
+    name: string;
+    split_type: string;
+    notes: string;
+  } | null;
+  template_items: WorkoutTemplateExercise[];
+  started_at: string;
+  current_exercise_index: number;
+  current_set_index: number;
+  logged_sets: WorkoutLoggedSet[];
+  notes: string;
+  updated_at: string;
+};
+
+export type ActiveWorkoutUpdateInput = Partial<Pick<ActiveWorkout, "current_exercise_index" | "current_set_index" | "logged_sets" | "notes">>;
+
 export type ClimbAttempt = {
   id: number;
   climb_name: string;
@@ -458,6 +546,16 @@ export type ClimbingProjectInput = {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+async function parseResponseBody<T>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text) {
+    return null as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -470,11 +568,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   await throwIfNotOk(response);
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
+  return parseResponseBody<T>(response);
 }
 
 async function throwIfNotOk(response: Response): Promise<void> {
@@ -536,7 +630,7 @@ export async function uploadRunningImport(file: File, source: RunningImportSourc
   });
 
   await throwIfNotOk(response);
-  return response.json() as Promise<RunningImportResult>;
+  return parseResponseBody<RunningImportResult>(response);
 }
 
 export function getRunningImports(): Promise<RunningImportBatch[]> {
@@ -652,6 +746,41 @@ export const api = {
       mutate<GymSession>(`/api/gym/sessions/${id}/`, "PATCH", input),
 
     delete: (id: number) => mutate<void>(`/api/gym/sessions/${id}/`, "DELETE"),
+  },
+
+  workoutTemplates: {
+    list: (includeArchived = false) =>
+      request<WorkoutTemplate[]>(`/api/gym/templates/${includeArchived ? "?include_archived=true" : ""}`),
+
+    create: (input: WorkoutTemplateInput) =>
+      mutate<WorkoutTemplate>("/api/gym/templates/", "POST", input),
+
+    retrieve: (id: number) => request<WorkoutTemplate>(`/api/gym/templates/${id}/`),
+
+    update: (id: number, input: Partial<WorkoutTemplateInput>) =>
+      mutate<WorkoutTemplate>(`/api/gym/templates/${id}/`, "PATCH", input),
+
+    archive: (id: number) =>
+      mutate<WorkoutTemplateArchiveResponse>(`/api/gym/templates/${id}/`, "DELETE"),
+
+    restore: (id: number) =>
+      mutate<WorkoutTemplate>(`/api/gym/templates/${id}/restore/`, "POST"),
+
+    start: (id: number) =>
+      mutate<ActiveWorkout>(`/api/gym/templates/${id}/start/`, "POST"),
+  },
+
+  activeWorkout: {
+    get: () => request<ActiveWorkout | null>("/api/gym/active-workout/"),
+
+    update: (input: ActiveWorkoutUpdateInput) =>
+      mutate<ActiveWorkout>("/api/gym/active-workout/", "PATCH", input),
+
+    complete: () =>
+      mutate<GymSession>("/api/gym/active-workout/complete/", "POST"),
+
+    cancel: () =>
+      mutate<void>("/api/gym/active-workout/", "DELETE"),
   },
 
   climbingSessions: {

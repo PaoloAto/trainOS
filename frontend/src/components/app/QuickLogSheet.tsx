@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardCheck, Dumbbell, Mountain, Timer } from "lucide-
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
+import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { QuickActionButton } from "@/components/common/QuickActionButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -396,7 +397,13 @@ function GymForm({ initialExerciseId, onSuccess }: { initialExerciseId?: number 
                 {selectedExercise.last_session_summary_label}
               </div>
             ) : null}
-            <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="How the set moved, setup notes, or next target." /></Field>
+            <OptionalNotesField
+              label="Notes"
+              value={notes}
+              onChange={setNotes}
+              collapsedLabel="+ Add set/session notes"
+              placeholder="How the set moved, setup notes, or next target."
+            />
           </FormPanel>
           <ErrorState error={error} />
           <SubmitFooter label="Save gym session" saving={saving} disabled={!exerciseId} />
@@ -474,7 +481,14 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
               <Field label="Source"><select className={selectClass} value={referenceSource} onChange={(event) => { setReferenceSource(event.target.value as ExerciseReferenceSource); setReferenceSourceTouched(true); }}>{referenceSourceOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
               <Field label="Title"><Input value={referenceTitle} onChange={(event) => setReferenceTitle(event.target.value)} placeholder="Pull-up form cue" /></Field>
             </FieldGrid>
-            <Field label="Notes"><textarea className={textareaClass} value={referenceNotes} onChange={(event) => setReferenceNotes(event.target.value)} placeholder="What should you remember before training this?" /></Field>
+            <OptionalNotesField
+              label="Cue notes"
+              value={referenceNotes}
+              onChange={setReferenceNotes}
+              collapsedLabel="+ Add cue notes"
+              placeholder="What should you remember before training this?"
+              helperText="Optional cues for this first saved form video."
+            />
           </>
         ) : null}
       </div>

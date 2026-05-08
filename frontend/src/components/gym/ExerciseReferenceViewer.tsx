@@ -1,7 +1,8 @@
 ﻿import { ExternalLink, Library, ListVideo, Pencil, Plus, Target, Video } from "lucide-react";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/common/Card";
+import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { ReferencePreview } from "@/components/gym/ReferencePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,8 @@ type ExerciseReferenceViewerProps = {
   onChanged: () => void;
   onLogSet: (exerciseId?: number) => void;
   onOpenExercise?: (exerciseId: number) => void;
+  onCreateExercise?: () => void;
+  onUseInRoutine?: (exercise: Exercise) => void;
 };
 
 type ReferenceEditorState = {
@@ -42,25 +45,70 @@ type ReferenceEditorState = {
 
 const sourceOptions = Object.entries(sourceLabels) as Array<[ExerciseReferenceSource, string]>;
 const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/20";
-const textareaClass = "min-h-24 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-amber focus:ring-2 focus:ring-amber/20";
+const upperBodyMuscles = ["Back", "Biceps", "Chest", "Forearms", "Shoulders", "Triceps"];
+const lowerBodyMuscles = ["Calves", "Glutes", "Hamstrings", "Quads"];
+const allMuscles = [...upperBodyMuscles, ...lowerBodyMuscles, "Core", "Full Body"];
+const exerciseRegionStorageKey = "trainos:gym:exerciseRegionFilter";
+const exerciseMuscleStorageKey = "trainos:gym:exerciseMuscleFilter";
+type BodyRegionFilter = "all" | "upper" | "lower";
 
-export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpenExercise }: ExerciseReferenceViewerProps) {
+export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpenExercise, onCreateExercise, onUseInRoutine }: ExerciseReferenceViewerProps) {
   const activeExercises = useMemo(() => exercises.filter((exercise) => !exercise.is_archived), [exercises]);
+  const [searchText, setSearchText] = useState("");
+  const [regionFilter, setRegionFilter] = useState<BodyRegionFilter>(() => readRegionFilter(exerciseRegionStorageKey));
+  const [muscleFilter, setMuscleFilter] = useState(() => sanitizeMuscleFilter(readStringFilter(exerciseMuscleStorageKey, "all"), readRegionFilter(exerciseRegionStorageKey)));
   const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(activeExercises[0]?.id ?? null);
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null);
   const [expandedExerciseIds, setExpandedExerciseIds] = useState<number[]>([]);
   const [editingReference, setEditingReference] = useState<ReferenceEditorState>(null);
   const [previewReference, setPreviewReference] = useState<ExerciseReference | null>(null);
+  const muscleOptions = useMemo(() => musclesForRegion(regionFilter), [regionFilter]);
+  const effectiveMuscleFilter = sanitizeMuscleFilter(muscleFilter, regionFilter);
+  const filteredExercises = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+    return activeExercises.filter((exercise) => {
+      const matchesRegion = regionFilter === "all" || muscleMatchesRegion(exercise.primary_muscle_group_name, regionFilter);
+      const matchesMuscle = effectiveMuscleFilter === "all" || normalizedMuscle(exercise.primary_muscle_group_name) === normalizedMuscle(effectiveMuscleFilter);
+      const matchesSearch = !normalizedSearch || [
+        exercise.name,
+        exercise.primary_muscle_group_name,
+        exercise.equipment,
+        exercise.movement_pattern,
+      ].some((value) => value.toLowerCase().includes(normalizedSearch));
+      return matchesRegion && matchesMuscle && matchesSearch;
+    });
+  }, [activeExercises, effectiveMuscleFilter, regionFilter, searchText]);
 
-  const effectiveSelectedExerciseId = activeExercises.some((exercise) => exercise.id === selectedExerciseId)
+  useEffect(() => {
+    window.localStorage.setItem(exerciseRegionStorageKey, regionFilter);
+  }, [regionFilter]);
+
+  useEffect(() => {
+    window.localStorage.setItem(exerciseMuscleStorageKey, muscleFilter);
+  }, [muscleFilter]);
+
+  const effectiveSelectedExerciseId = filteredExercises.some((exercise) => exercise.id === selectedExerciseId)
     ? selectedExerciseId
-    : activeExercises[0]?.id ?? null;
-  const selectedExercise = activeExercises.find((exercise) => exercise.id === effectiveSelectedExerciseId) ?? null;
+    : filteredExercises[0]?.id ?? null;
+  const selectedExercise = filteredExercises.find((exercise) => exercise.id === effectiveSelectedExerciseId) ?? null;
   const selectedReference = selectedExercise
     ? selectedExercise.references.find((reference) => reference.id === selectedReferenceId) ?? selectedExercise.references[0] ?? null
     : null;
-  const groupedExercises = useMemo(() => groupExercises(activeExercises), [activeExercises]);
+  const groupedExercises = useMemo(() => groupExercises(filteredExercises), [filteredExercises]);
   const totalReferences = activeExercises.reduce((sum, exercise) => sum + exercise.reference_count, 0);
+
+  function handleRegionChange(nextRegion: BodyRegionFilter) {
+    setRegionFilter(nextRegion);
+    if (muscleFilter !== "all" && !musclesForRegion(nextRegion).some((muscle) => normalizedMuscle(muscle) === normalizedMuscle(muscleFilter))) {
+      setMuscleFilter("all");
+    }
+  }
+
+  function clearFilters() {
+    setSearchText("");
+    setRegionFilter("all");
+    setMuscleFilter("all");
+  }
 
   function toggleExpanded(exerciseId: number) {
     setExpandedExerciseIds((current) =>
@@ -90,12 +138,29 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Exercise library</p>
-            <h2 className="mt-1 text-xl font-semibold text-text-primary">Form guide</h2>
+            <h2 className="mt-1 text-xl font-semibold text-text-primary">Exercises</h2>
             <p className="mt-2 text-sm leading-6 text-text-secondary">
-              Choose an exercise, preview saved form cues, then log your working set from the same context.
+              Create movements, save form videos, then use them in quick logs or routines.
             </p>
           </div>
+          {onCreateExercise ? (
+            <Button type="button" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onCreateExercise}>
+              <Plus className="h-4 w-4" />
+              New Movement
+            </Button>
+          ) : null}
         </div>
+        {activeExercises.length > 0 ? (
+          <MovementLibraryFilters
+            searchText={searchText}
+            regionFilter={regionFilter}
+            muscleFilter={effectiveMuscleFilter}
+            muscleOptions={muscleOptions}
+            onSearchTextChange={setSearchText}
+            onRegionFilterChange={handleRegionChange}
+            onMuscleFilterChange={setMuscleFilter}
+          />
+        ) : null}
       </div>
 
       {activeExercises.length === 0 ? (
@@ -104,7 +169,35 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-amber bg-amber-muted text-amber">
               <Library className="h-5 w-5" />
             </div>
-            No active exercises yet. Create an exercise from Quick Log, then add a YouTube Short, Reel, TikTok, or form cue.
+            <h3 className="text-base font-semibold text-text-primary">Start your exercise library</h3>
+            <p className="mt-1">Create your first movement before building routines or saving form videos.</p>
+            {onCreateExercise ? (
+              <Button type="button" className="mt-4 rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onCreateExercise}>
+                <Plus className="h-4 w-4" />
+                Create movement
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : filteredExercises.length === 0 ? (
+        <div className="p-5 md:p-6">
+          <div className="rounded-3xl border border-dashed border-border bg-bg-elevated p-5 text-sm leading-6 text-text-secondary">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-amber bg-amber-muted text-amber">
+              <Library className="h-5 w-5" />
+            </div>
+            <h3 className="text-base font-semibold text-text-primary">No movements found for this filter.</h3>
+            <p className="mt-1">Create a movement or clear filters.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" className="rounded-2xl" onClick={clearFilters}>
+                Clear filters
+              </Button>
+              {onCreateExercise ? (
+                <Button type="button" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onCreateExercise}>
+                  <Plus className="h-4 w-4" />
+                  Create movement
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : (
@@ -145,6 +238,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
                   }}
                   onAddReference={() => setEditingReference({ exercise: selectedExercise, reference: null })}
                   onLogSet={() => onLogSet(selectedExercise.id)}
+                  onUseInRoutine={onUseInRoutine ? () => onUseInRoutine(selectedExercise) : undefined}
                   onOpenExercise={onOpenExercise ? () => onOpenExercise(selectedExercise.id) : undefined}
                 />
               ) : null}
@@ -152,7 +246,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
           </div>
 
           <div className="space-y-3 p-5 md:hidden">
-            {activeExercises.map((exercise) => {
+            {filteredExercises.map((exercise) => {
               const expanded = expandedExerciseIds.includes(exercise.id);
               return (
                 <MobileExerciseCard
@@ -168,6 +262,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
                   }}
                   onPreviewReference={setPreviewReference}
                   onLogSet={() => onLogSet(exercise.id)}
+                  onUseInRoutine={onUseInRoutine ? () => onUseInRoutine(exercise) : undefined}
                   onOpenExercise={onOpenExercise ? () => onOpenExercise(exercise.id) : undefined}
                 />
               );
@@ -198,6 +293,84 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
   );
 }
 
+function MovementLibraryFilters({
+  searchText,
+  regionFilter,
+  muscleFilter,
+  muscleOptions,
+  onSearchTextChange,
+  onRegionFilterChange,
+  onMuscleFilterChange,
+}: {
+  searchText: string;
+  regionFilter: BodyRegionFilter;
+  muscleFilter: string;
+  muscleOptions: string[];
+  onSearchTextChange: (value: string) => void;
+  onRegionFilterChange: (value: BodyRegionFilter) => void;
+  onMuscleFilterChange: (value: string) => void;
+}) {
+  const regionOptions: Array<{ value: BodyRegionFilter; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "upper", label: "Upper" },
+    { value: "lower", label: "Lower" },
+  ];
+  const allLabel = regionFilter === "upper" ? "All Upper" : regionFilter === "lower" ? "All Lower" : "All Muscles";
+
+  return (
+    <div className="mt-5 space-y-3 rounded-3xl border border-border bg-bg-base/40 p-3">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+        <Input
+          value={searchText}
+          onChange={(event) => onSearchTextChange(event.target.value)}
+          placeholder="Search movement, muscle, equipment..."
+          className="h-11 focus:border-amber focus:ring-amber/20"
+        />
+        <div className="grid grid-cols-3 gap-2">
+          {regionOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={cn(
+                "rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition",
+                regionFilter === option.value ? "border-amber bg-amber-muted text-amber" : "border-border bg-bg-elevated text-text-secondary hover:border-amber/60",
+              )}
+              onClick={() => onRegionFilterChange(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        <button
+          type="button"
+          className={cn(
+            "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+            muscleFilter === "all" ? "border-amber bg-amber-muted text-amber" : "border-border bg-bg-elevated text-text-secondary hover:border-amber/60",
+          )}
+          onClick={() => onMuscleFilterChange("all")}
+        >
+          {allLabel}
+        </button>
+        {muscleOptions.map((muscle) => (
+          <button
+            key={muscle}
+            type="button"
+            className={cn(
+              "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+              normalizedMuscle(muscleFilter) === normalizedMuscle(muscle) ? "border-amber bg-amber-muted text-amber" : "border-border bg-bg-elevated text-text-secondary hover:border-amber/60",
+            )}
+            onClick={() => onMuscleFilterChange(muscle)}
+          >
+            {muscle}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DesktopExercisePanel({
   exercise,
   selectedReference,
@@ -208,6 +381,7 @@ function DesktopExercisePanel({
   onDeleteReference,
   onAddReference,
   onLogSet,
+  onUseInRoutine,
   onOpenExercise,
 }: {
   exercise: Exercise;
@@ -219,6 +393,7 @@ function DesktopExercisePanel({
   onDeleteReference: (reference: ExerciseReference) => Promise<void>;
   onAddReference: () => void;
   onLogSet: () => void;
+  onUseInRoutine?: () => void;
   onOpenExercise?: () => void;
 }) {
   return (
@@ -240,19 +415,25 @@ function DesktopExercisePanel({
           ) : null}
           <Button type="button" variant="secondary" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onLogSet}>
             <Target className="h-4 w-4" />
-            Log set
+            Log quick set
           </Button>
+          {onUseInRoutine ? (
+            <Button type="button" variant="secondary" className="rounded-2xl" onClick={onUseInRoutine}>
+              <Plus className="h-4 w-4" />
+              Use in routine
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <ViewerMetric label="References" value={String(exercise.reference_count)} />
-        <ViewerMetric label="All saved refs" value={String(totalReferences)} />
+        <ViewerMetric label="Saved videos" value={String(exercise.reference_count)} />
+        <ViewerMetric label="All saved cues" value={String(totalReferences)} />
         <ViewerMetric label="Last done" value={exercise.last_performed_date ? formatShortDate(exercise.last_performed_date) : "--"} />
       </div>
 
       <div className="mt-6 flex-1 space-y-4">
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-text-muted">References / {exercise.reference_count}</p>
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-text-muted">Form videos / {exercise.reference_count}</p>
         {selectedReference ? (
           <ReferencePreview
             reference={selectedReference}
@@ -294,6 +475,7 @@ function MobileExerciseCard({
   onDeleteReference,
   onPreviewReference,
   onLogSet,
+  onUseInRoutine,
   onOpenExercise,
 }: {
   exercise: Exercise;
@@ -304,6 +486,7 @@ function MobileExerciseCard({
   onDeleteReference: (reference: ExerciseReference) => Promise<void>;
   onPreviewReference: (reference: ExerciseReference) => void;
   onLogSet: () => void;
+  onUseInRoutine?: () => void;
   onOpenExercise?: () => void;
 }) {
   return (
@@ -316,7 +499,7 @@ function MobileExerciseCard({
           </p>
         </div>
         <span className="rounded-full border border-amber bg-amber-muted px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber">
-          {exercise.reference_count} refs
+          {exercise.reference_count} videos
         </span>
       </div>
       <p className="mt-3 rounded-2xl border border-border bg-bg-card p-3 text-xs leading-5 text-text-secondary">
@@ -325,13 +508,19 @@ function MobileExerciseCard({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button type="button" variant="secondary" className="rounded-2xl" onClick={onToggle}>
           <ListVideo className="h-4 w-4" />
-          {expanded ? "Hide refs" : "Show refs"}
+          {expanded ? "Hide videos" : "Show videos"}
         </Button>
         <Button type="button" variant="secondary" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onLogSet}>
           <Target className="h-4 w-4" />
           Log set
         </Button>
       </div>
+      {onUseInRoutine ? (
+        <Button type="button" variant="secondary" className="mt-2 h-9 w-full rounded-2xl text-xs" onClick={onUseInRoutine}>
+          <Plus className="h-3.5 w-3.5" />
+          Use in routine
+        </Button>
+      ) : null}
       {onOpenExercise ? (
         <Button type="button" variant="ghost" className="mt-2 h-9 w-full rounded-2xl text-xs" onClick={onOpenExercise}>
           <Pencil className="h-3.5 w-3.5" />
@@ -365,7 +554,7 @@ function MobileReferenceEmptyState() {
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber bg-amber-muted text-amber">
         <Video className="h-4 w-4" />
       </div>
-      <h3 className="mt-3 text-sm font-semibold text-text-primary">No form references yet.</h3>
+      <h3 className="mt-3 text-sm font-semibold text-text-primary">No form videos yet.</h3>
       <p className="mt-2 text-xs leading-5 text-text-secondary">Add a YouTube Short, Reel, TikTok, or form cue.</p>
     </div>
   );
@@ -401,10 +590,10 @@ function ReferenceEditorSheet({ state, open, onOpenChange, onSaved }: { state: R
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto md:w-[min(92vw,36rem)]">
         <SheetHeader>
-          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Form reference</p>
-          <SheetTitle>{state?.reference ? "Edit reference" : "Add reference"}</SheetTitle>
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Form video</p>
+          <SheetTitle>{state?.reference ? "Edit form cue" : "Add form video"}</SheetTitle>
           <SheetDescription>
-            {state ? `${state.exercise.name} / store only the URL, title, and your form cues.` : "Store reference metadata only."}
+            {state ? `${state.exercise.name} / store only the URL, title, and your form cues.` : "Store form cue metadata only."}
           </SheetDescription>
         </SheetHeader>
         {state ? <ReferenceForm exercise={state.exercise} reference={state.reference} onSaved={onSaved} onCancel={() => onOpenChange(false)} /> : null}
@@ -440,7 +629,7 @@ function ReferenceForm({ exercise, reference, onSaved, onCancel }: { exercise: E
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save reference.");
+      setError(err instanceof Error ? err.message : "Unable to save form video.");
     } finally {
       setSaving(false);
     }
@@ -468,13 +657,18 @@ function ReferenceForm({ exercise, reference, onSaved, onCancel }: { exercise: E
           <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Strict barbell row" className="focus:border-amber focus:ring-amber/20" />
         </Field>
       </div>
-      <Field label="Notes">
-        <textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Setup cue, tempo, range of motion, or mistake to avoid." />
-      </Field>
+      <OptionalNotesField
+        label="Cue notes"
+        value={notes}
+        onChange={setNotes}
+        collapsedLabel="+ Add cue notes"
+        placeholder="Setup cue, tempo, range of motion, or mistake to avoid."
+        helperText="Optional cues for this saved form video or link."
+      />
       {error ? <p className="rounded-2xl border border-red bg-red-muted p-3 text-sm text-red">{error}</p> : null}
       <div className="grid grid-cols-2 gap-3">
         <Button type="button" variant="secondary" className="rounded-2xl" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" className="rounded-2xl" disabled={saving || !url}>{saving ? "Saving..." : reference ? "Save changes" : "Save reference"}</Button>
+        <Button type="submit" className="rounded-2xl" disabled={saving || !url}>{saving ? "Saving..." : reference ? "Save changes" : "Save video"}</Button>
       </div>
     </form>
   );
@@ -488,7 +682,7 @@ function YoutubePreviewSheet({ reference, open, onOpenChange }: { reference: Exe
       <SheetContent className="overflow-y-auto md:w-[min(92vw,44rem)]">
         <SheetHeader>
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Video preview</p>
-          <SheetTitle>{reference?.title || "YouTube reference"}</SheetTitle>
+          <SheetTitle>{reference?.title || "YouTube form video"}</SheetTitle>
           <SheetDescription>Preview uses youtube-nocookie.com. TrainOS only stores the URL and your notes.</SheetDescription>
         </SheetHeader>
         {reference && preview ? (
@@ -517,7 +711,7 @@ function YoutubePreviewSheet({ reference, open, onOpenChange }: { reference: Exe
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">
-            Preview unavailable for this reference. Open it in the source app or site.
+            Preview unavailable for this cue. Open it in the source app or site.
           </div>
         )}
       </SheetContent>
@@ -531,11 +725,11 @@ function ReferenceEmptyState({ onAddReference }: { onAddReference: () => void })
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-amber bg-amber-muted text-amber">
         <Video className="h-5 w-5" />
       </div>
-      <h3 className="mt-4 text-base font-semibold text-text-primary">No form references yet</h3>
+      <h3 className="mt-4 text-base font-semibold text-text-primary">No form videos yet</h3>
       <p className="mt-2 text-sm leading-6 text-text-secondary">Add a YouTube Short, Reel, TikTok, or form cue.</p>
       <Button type="button" className="mt-4 rounded-2xl" onClick={onAddReference}>
         <Plus className="h-4 w-4" />
-        Add reference
+        Add video
       </Button>
     </div>
   );
@@ -552,7 +746,7 @@ function AddReferenceTile({ onClick, mobile = false }: { onClick: () => void; mo
       )}
     >
       <Plus className="mb-2 h-5 w-5" />
-      Add reference
+      Add video
     </button>
   );
 }
@@ -586,6 +780,35 @@ function groupExercises(exercises: Exercise[]) {
   return Array.from(groups.entries())
     .map(([label, groupExercises]) => ({ label, exercises: groupExercises.sort((a, b) => a.name.localeCompare(b.name)) }))
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function musclesForRegion(region: BodyRegionFilter) {
+  if (region === "upper") return upperBodyMuscles;
+  if (region === "lower") return lowerBodyMuscles;
+  return allMuscles;
+}
+
+function muscleMatchesRegion(muscleName: string, region: BodyRegionFilter) {
+  const normalized = normalizedMuscle(muscleName);
+  return musclesForRegion(region).some((muscle) => normalizedMuscle(muscle) === normalized);
+}
+
+function sanitizeMuscleFilter(muscleFilter: string, region: BodyRegionFilter) {
+  if (muscleFilter === "all") return "all";
+  return musclesForRegion(region).some((muscle) => normalizedMuscle(muscle) === normalizedMuscle(muscleFilter)) ? muscleFilter : "all";
+}
+
+function normalizedMuscle(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function readStringFilter(key: string, fallback: string) {
+  return window.localStorage.getItem(key) ?? fallback;
+}
+
+function readRegionFilter(key: string): BodyRegionFilter {
+  const stored = window.localStorage.getItem(key);
+  return stored === "upper" || stored === "lower" || stored === "all" ? stored : "all";
 }
 
 function labelize(value: string) {

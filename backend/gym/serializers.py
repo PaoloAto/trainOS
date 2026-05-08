@@ -1,10 +1,11 @@
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup
+from .models import ActiveWorkout, Exercise, ExerciseReference, GymSession, GymSet, MuscleGroup, WorkoutTemplate, WorkoutTemplateExercise
 
 
 def accessible_exercises(user, include_archived=False):
@@ -286,3 +287,184 @@ class GymSessionSerializer(serializers.ModelSerializer):
                 set_data["set_number"] = index
                 GymSet.objects.create(session=instance, **set_data)
         return instance
+
+
+class WorkoutTemplateExerciseSerializer(serializers.ModelSerializer):
+    exercise_name = serializers.CharField(source="exercise.name", read_only=True)
+    primary_muscle_group_name = serializers.CharField(source="exercise.primary_muscle_group.name", read_only=True)
+    equipment = serializers.CharField(source="exercise.equipment", read_only=True)
+    movement_pattern = serializers.CharField(source="exercise.movement_pattern", read_only=True)
+    reference_count = serializers.SerializerMethodField()
+    references = serializers.SerializerMethodField()
+    last_session_summary_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkoutTemplateExercise
+        fields = [
+            "id",
+            "exercise",
+            "exercise_name",
+            "primary_muscle_group_name",
+            "equipment",
+            "movement_pattern",
+            "reference_count",
+            "references",
+            "last_session_summary_label",
+            "order",
+            "target_sets",
+            "target_reps_low",
+            "target_reps_high",
+            "suggested_weight",
+            "rest_seconds",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "exercise_name",
+            "primary_muscle_group_name",
+            "equipment",
+            "movement_pattern",
+            "reference_count",
+            "references",
+            "last_session_summary_label",
+            "created_at",
+            "updated_at",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            self.fields["exercise"].queryset = accessible_exercises(request.user)
+
+    def _exercise_serializer(self, exercise):
+        return ExerciseSerializer(exercise, context=self.context)
+
+    def get_reference_count(self, obj):
+        return self._exercise_serializer(obj.exercise).get_reference_count(obj.exercise)
+
+    def get_references(self, obj):
+        return self._exercise_serializer(obj.exercise).get_references(obj.exercise)
+
+    def get_last_session_summary_label(self, obj):
+        return self._exercise_serializer(obj.exercise).get_last_session_summary_label(obj.exercise)
+
+
+class WorkoutTemplateSerializer(serializers.ModelSerializer):
+    items = WorkoutTemplateExerciseSerializer(many=True, required=False)
+    exercise_count = serializers.SerializerMethodField()
+    target_set_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkoutTemplate
+        fields = [
+            "id",
+            "name",
+            "split_type",
+            "notes",
+            "is_archived",
+            "archived_at",
+            "items",
+            "exercise_count",
+            "target_set_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "is_archived", "archived_at", "exercise_count", "target_set_count", "created_at", "updated_at"]
+
+    def get_exercise_count(self, obj):
+        return obj.items.count()
+
+    def get_target_set_count(self, obj):
+        return sum(item.target_sets for item in obj.items.all())
+
+    def validate_items(self, value):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return value
+        allowed_ids = set(accessible_exercises(request.user).values_list("id", flat=True))
+        for item in value:
+            exercise = item.get("exercise")
+            if exercise and exercise.id not in allowed_ids:
+                raise serializers.ValidationError("One or more exercises are archived or unavailable.")
+        return value
+
+    def _save_items(self, template, items_data):
+        template.items.all().delete()
+        for index, item_data in enumerate(items_data, start=1):
+            item_data["order"] = index
+            WorkoutTemplateExercise.objects.create(template=template, **item_data)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        items_data = validated_data.pop("items", [])
+        template = WorkoutTemplate.objects.create(**validated_data)
+        self._save_items(template, items_data)
+        return template
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop("items", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if items_data is not None:
+            self._save_items(instance, items_data)
+        return instance
+
+
+class ActiveWorkoutSerializer(serializers.ModelSerializer):
+    template_summary = serializers.SerializerMethodField()
+    template_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ActiveWorkout
+        fields = [
+            "id",
+            "template",
+            "template_summary",
+            "template_items",
+            "started_at",
+            "current_exercise_index",
+            "current_set_index",
+            "logged_sets",
+            "notes",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "template", "template_summary", "template_items", "started_at", "updated_at"]
+
+    def get_template_summary(self, obj):
+        if not obj.template:
+            return None
+        return {
+            "id": obj.template.id,
+            "name": obj.template.name,
+            "split_type": obj.template.split_type,
+            "notes": obj.template.notes,
+        }
+
+    def get_template_items(self, obj):
+        if not obj.template:
+            return []
+        queryset = obj.template.items.select_related("exercise", "exercise__primary_muscle_group").prefetch_related("exercise__references")
+        return WorkoutTemplateExerciseSerializer(queryset, many=True, context=self.context).data
+
+    def validate_logged_sets(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Logged sets must be a list.")
+        request = self.context.get("request")
+        allowed_ids = set()
+        if request and request.user.is_authenticated:
+            allowed_ids = set(accessible_exercises(request.user, include_archived=True).values_list("id", flat=True))
+        for index, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(f"Logged set {index + 1} must be an object.")
+            exercise_id = item.get("exercise")
+            if not exercise_id or int(exercise_id) not in allowed_ids:
+                raise serializers.ValidationError("One or more logged sets reference an unavailable exercise.")
+            reps = item.get("reps")
+            if reps is None or int(reps) <= 0:
+                raise serializers.ValidationError("Logged sets must include positive reps.")
+        return value
