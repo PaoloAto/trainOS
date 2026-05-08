@@ -92,5 +92,5 @@ export function externalReferenceLabel(source: ExerciseReferenceSource): string 
   if (source === "instagram") return "Instagram Reel";
   if (source === "tiktok") return "TikTok Clip";
   if (source === "website") return "Website";
-  return "External";
+  return "External Reference";
 }

@@ -108,18 +108,23 @@ export function ReferencePreview({
         <p className="mt-3 rounded-2xl border border-border bg-bg-card p-3 text-xs leading-5 text-text-muted">
           {reference.source === "youtube"
             ? "Open externally to view this cue. This YouTube URL cannot be embedded."
-            : "Preview stays external for this source. Open it safely in the source app or website."}
+            : "Preview opens externally for this source. Open this cue in the source app or website."}
         </p>
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {canPreview && onPreview ? (
-          <Button type="button" variant="secondary" size="sm" className="rounded-xl" onClick={onPreview}>
+          <Button type="button" variant="secondary" size="sm" className="rounded-xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onPreview}>
             <Play className="h-3.5 w-3.5" />
             Preview
           </Button>
         ) : null}
-        <Button asChild variant="secondary" size="sm" className={cn("rounded-xl border-amber bg-amber-muted text-amber hover:bg-amber/20", !canPreview ? "min-w-28" : "")}>
+        <Button
+          asChild
+          variant="secondary"
+          size="sm"
+          className={cn("rounded-xl", !canPreview ? "min-w-28 border-amber bg-amber-muted text-amber hover:bg-amber/20" : "")}
+        >
           <a href={reference.url} target="_blank" rel="noreferrer">
             <ExternalLink className="h-3.5 w-3.5" />
             Open

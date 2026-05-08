@@ -564,12 +564,20 @@ function ReferenceCard({ reference, onPreview, onEdit, onDelete }: { reference: 
         </div>
         <div className="flex gap-2">
           {canPreview ? (
-            <Button type="button" variant="secondary" size="sm" className="h-9 rounded-xl" onClick={onPreview}>
+            <Button type="button" variant="secondary" size="sm" className="h-9 rounded-xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onPreview}>
               <Play className="h-3.5 w-3.5" />
               Preview
             </Button>
           ) : null}
-          <a className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber bg-amber-muted px-3 text-xs font-semibold text-amber transition hover:bg-amber/20" href={reference.url} target="_blank" rel="noreferrer">
+          <a
+            className={cn(
+              "inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition",
+              canPreview ? "border-border bg-bg-elevated text-text-primary hover:border-text-muted" : "border-amber bg-amber-muted text-amber hover:bg-amber/20",
+            )}
+            href={reference.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             <ExternalLink className="h-3.5 w-3.5" />
             Open
           </a>

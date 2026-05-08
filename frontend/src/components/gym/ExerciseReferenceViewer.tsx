@@ -72,6 +72,18 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
     onChanged();
   }
 
+  function handleSelectExercise(exercise: Exercise) {
+    setSelectedExerciseId(exercise.id);
+    setSelectedReferenceId(exercise.references[0]?.id ?? null);
+  }
+
+  function handleDeletedReference(reference: ExerciseReference) {
+    if (selectedReferenceId === reference.id) {
+      setSelectedReferenceId(null);
+    }
+    handleReferenceChanged();
+  }
+
   return (
     <Card className="overflow-hidden p-0" delay={0.03}>
       <div className="border-b border-border bg-bg-elevated/60 px-5 py-4 md:px-6">
@@ -83,12 +95,6 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
               Choose an exercise, preview saved form cues, then log your working set from the same context.
             </p>
           </div>
-          {import.meta.env.DEV ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-border bg-bg-card p-1">
-              <span className="rounded-xl border border-amber bg-amber-muted px-3 py-2 text-xs font-semibold text-amber">Desktop</span>
-              <span className="rounded-xl border border-border bg-bg-elevated px-3 py-2 text-xs font-semibold text-text-secondary">Mobile</span>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -115,10 +121,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
                           key={exercise.id}
                           exercise={exercise}
                           selected={exercise.id === selectedExercise?.id}
-                          onSelect={() => {
-                            setSelectedExerciseId(exercise.id);
-                            setSelectedReferenceId(exercise.references[0]?.id ?? null);
-                          }}
+                          onSelect={() => handleSelectExercise(exercise)}
                         />
                       ))}
                     </div>
@@ -138,7 +141,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
                   onEditReference={(reference) => setEditingReference({ exercise: selectedExercise, reference })}
                   onDeleteReference={async (reference) => {
                     await api.exerciseReferences.delete(reference.id);
-                    handleReferenceChanged();
+                    handleDeletedReference(reference);
                   }}
                   onAddReference={() => setEditingReference({ exercise: selectedExercise, reference: null })}
                   onLogSet={() => onLogSet(selectedExercise.id)}
@@ -161,7 +164,7 @@ export function ExerciseReferenceViewer({ exercises, onChanged, onLogSet, onOpen
                   onEditReference={(reference) => setEditingReference({ exercise, reference })}
                   onDeleteReference={async (reference) => {
                     await api.exerciseReferences.delete(reference.id);
-                    handleReferenceChanged();
+                    handleDeletedReference(reference);
                   }}
                   onPreviewReference={setPreviewReference}
                   onLogSet={() => onLogSet(exercise.id)}
@@ -338,6 +341,7 @@ function MobileExerciseCard({
 
       {expanded ? (
         <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+          {exercise.references.length === 0 ? <MobileReferenceEmptyState /> : null}
           {exercise.references.map((reference) => (
             <ReferencePreview
               key={reference.id}
@@ -351,6 +355,18 @@ function MobileExerciseCard({
           <AddReferenceTile onClick={onAddReference} mobile />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MobileReferenceEmptyState() {
+  return (
+    <div className="min-w-[18rem] rounded-3xl border border-dashed border-border bg-bg-card p-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber bg-amber-muted text-amber">
+        <Video className="h-4 w-4" />
+      </div>
+      <h3 className="mt-3 text-sm font-semibold text-text-primary">No form references yet.</h3>
+      <p className="mt-2 text-xs leading-5 text-text-secondary">Add a YouTube Short, Reel, TikTok, or form cue.</p>
     </div>
   );
 }
