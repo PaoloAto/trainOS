@@ -474,6 +474,9 @@ export type ActiveWorkoutUpdateInput = Partial<Pick<ActiveWorkout, "current_exer
 
 export type ClimbAttempt = {
   id: number;
+  project: number | null;
+  project_name: string;
+  project_status: string;
   climb_name: string;
   grade_system: string;
   grade: string;
@@ -485,9 +488,10 @@ export type ClimbAttempt = {
 };
 
 export type ClimbAttemptInput = {
+  project?: number | null;
   climb_name?: string;
-  grade_system: string;
-  grade: string;
+  grade_system?: string;
+  grade?: string;
   style?: string;
   result: string;
   attempts: number;
@@ -528,6 +532,17 @@ export type ClimbingProject = {
   started_at: string | null;
   sent_at: string | null;
   notes: string;
+  linked_attempt_count: number;
+  linked_session_count: number;
+  latest_attempt_date: string | null;
+  latest_attempt_result: string;
+  days_active: number;
+  days_since_last_attempt: number | null;
+  attempt_summary_label: string;
+  total_attempts: number;
+  sessions_worked: number;
+  latest_result: string;
+  progress_label: string;
   created_at: string;
   updated_at: string;
 };
@@ -542,6 +557,145 @@ export type ClimbingProjectInput = {
   started_at?: string | null;
   sent_at?: string | null;
   notes?: string;
+};
+
+export type ClimbingProjectSummary = {
+  id: number;
+  name: string;
+  grade: string;
+  grade_system: string;
+  location: string;
+  status: string;
+  session_type: string;
+  started_at: string | null;
+  sent_at: string | null;
+  linked_attempt_count: number;
+  linked_session_count: number;
+  latest_attempt_date: string | null;
+  latest_attempt_result: string;
+  days_active: number;
+  days_since_last_attempt: number | null;
+  attempt_summary_label: string;
+  total_attempts: number;
+  sessions_worked: number;
+  latest_result: string;
+  progress_label: string;
+  updated_at: string;
+};
+
+export type ClimbingGradeDistributionItem = {
+  grade: string;
+  grade_system: string;
+  attempt_count: number;
+  logged_climb_count: number;
+  send_or_clean_count: number;
+};
+
+export type ClimbingSuccessRateByGradeItem = {
+  grade: string;
+  grade_system: string;
+  attempt_count: number;
+  logged_climb_count: number;
+  success_count: number;
+  success_rate: number;
+};
+
+export type ClimbingStyleStrength = {
+  style: string;
+  attempt_count: number;
+  success_count: number;
+  success_rate: number;
+  insight_label: string;
+};
+
+export type ClimbingAnalytics = {
+  summary: {
+    total_sessions: number;
+    total_attempts: number;
+    sessions_this_week: number;
+    sessions_this_month: number;
+    attempts_this_week: number;
+    attempts_this_month: number;
+    active_project_count: number;
+    sent_project_count: number;
+  };
+  session_type_distribution: Array<{
+    session_type: string;
+    session_count: number;
+    attempt_count: number;
+  }>;
+  bouldering: {
+    session_count: number;
+    attempt_count: number;
+    send_count: number;
+    flash_count: number;
+    project_count: number;
+    fail_count: number;
+    highest_attempted_grade: string | null;
+    highest_sent_grade: string | null;
+    most_common_grade: string | null;
+    grade_distribution: ClimbingGradeDistributionItem[];
+  };
+  top_rope: {
+    session_count: number;
+    attempt_count: number;
+    clean_count: number;
+    take_count: number;
+    fall_count: number;
+    complete_count: number;
+    highest_attempted_grade: string | null;
+    highest_clean_grade: string | null;
+    most_common_grade: string | null;
+    grade_distribution: ClimbingGradeDistributionItem[];
+  };
+  bouldering_progression: {
+    highest_sent_grade: string | null;
+    highest_attempted_grade: string | null;
+    recent_highest_sent_grade: string | null;
+    recent_highest_attempted_grade: string | null;
+    v4_gap_label: string;
+    grade_distribution: ClimbingGradeDistributionItem[];
+    send_rate_by_grade: ClimbingSuccessRateByGradeItem[];
+  };
+  top_rope_progression: {
+    highest_clean_grade: string | null;
+    highest_attempted_grade: string | null;
+    recent_highest_clean_grade: string | null;
+    grade_distribution: ClimbingGradeDistributionItem[];
+    clean_rate_by_grade: ClimbingSuccessRateByGradeItem[];
+  };
+  style_distribution: Array<{
+    style: string;
+    attempt_count: number;
+    send_or_clean_count: number;
+  }>;
+  style_strengths: ClimbingStyleStrength[];
+  projects: {
+    active_count: number;
+    sent_count: number;
+    paused_count: number;
+    abandoned_count: number;
+    stale_projects: ClimbingProjectSummary[];
+    recently_sent_projects: ClimbingProjectSummary[];
+    project_attempt_totals: ClimbingProjectSummary[];
+  };
+  project_progress: ClimbingProjectSummary[];
+  weekly_climbing_trend: Array<{
+    week_start: string;
+    session_count: number;
+    attempt_count: number;
+    send_or_clean_count: number;
+  }>;
+  recent_sessions: Array<{
+    id: number;
+    date: string;
+    location: string;
+    session_type: string;
+    duration_minutes: number | null;
+    attempt_count: number;
+    summary: string[];
+  }>;
+  deterministic_insights: string[];
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -795,6 +949,10 @@ export const api = {
       mutate<ClimbingSession>(`/api/climbing/sessions/${id}/`, "PATCH", input),
 
     delete: (id: number) => mutate<void>(`/api/climbing/sessions/${id}/`, "DELETE"),
+  },
+
+  climbingAnalytics: {
+    get: () => request<ClimbingAnalytics>("/api/climbing/analytics/"),
   },
 
   climbingProjects: {

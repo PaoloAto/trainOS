@@ -1,15 +1,60 @@
+from django.utils import timezone
 from rest_framework import serializers
 
-from .models import ClimbAttempt, ClimbingProject, ClimbingSession
+from .models import ClimbAttempt, ClimbingChoices, ClimbingProject, ClimbingSession
+
+
+BOULDERING_SEND_RESULTS = {ClimbingChoices.Result.FLASH, ClimbingChoices.Result.SEND}
+ROUTE_SEND_RESULTS = {ClimbingChoices.Result.CLEAN, ClimbingChoices.Result.COMPLETE}
+GENERIC_SEND_RESULTS = {
+    ClimbingChoices.Result.SEND,
+    ClimbingChoices.Result.FLASH,
+    ClimbingChoices.Result.CLEAN,
+    ClimbingChoices.Result.COMPLETE,
+}
+
+
+def is_send_like_result(session_type: str, result: str) -> bool:
+    if session_type == ClimbingChoices.SessionType.BOULDERING:
+        return result in BOULDERING_SEND_RESULTS
+    if session_type in {
+        ClimbingChoices.SessionType.TOP_ROPE,
+        ClimbingChoices.SessionType.SPORT,
+        ClimbingChoices.SessionType.TRAD,
+    }:
+        return result in ROUTE_SEND_RESULTS
+    return result in GENERIC_SEND_RESULTS
+
+
+def maybe_mark_project_sent(project: ClimbingProject | None, session: ClimbingSession, result: str) -> None:
+    if not project or not is_send_like_result(session.session_type, result):
+        return
+    update_fields = []
+    if project.status != ClimbingProject.Status.SENT:
+        project.status = ClimbingProject.Status.SENT
+        update_fields.append("status")
+    if project.sent_at is None:
+        project.sent_at = session.date
+        update_fields.append("sent_at")
+    if update_fields:
+        update_fields.append("updated_at")
+        project.save(update_fields=update_fields)
 
 
 class ClimbAttemptSerializer(serializers.ModelSerializer):
     grade_system = serializers.ChoiceField(choices=ClimbAttempt._meta.get_field("grade_system").choices, required=False)
+    grade = serializers.CharField(required=False, allow_blank=True)
+    project = serializers.PrimaryKeyRelatedField(queryset=ClimbingProject.objects.all(), required=False, allow_null=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    project_status = serializers.CharField(source="project.status", read_only=True)
 
     class Meta:
         model = ClimbAttempt
         fields = [
             "id",
+            "project",
+            "project_name",
+            "project_status",
             "climb_name",
             "grade_system",
             "grade",
@@ -20,6 +65,24 @@ class ClimbAttemptSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+    def validate_project(self, project):
+        if project is None:
+            return project
+        request = self.context.get("request")
+        if request and project.user_id != request.user.id:
+            raise serializers.ValidationError("Linked project does not belong to this user.")
+        return project
+
+    def validate(self, attrs):
+        project = attrs.get("project")
+        if project:
+            attrs["climb_name"] = attrs.get("climb_name") or project.name
+            attrs["grade"] = attrs.get("grade") or project.grade
+            attrs["grade_system"] = attrs.get("grade_system") or project.grade_system
+        if not attrs.get("grade"):
+            raise serializers.ValidationError({"grade": "Grade is required unless a project is selected."})
+        return attrs
 
 
 class ClimbingSessionSerializer(serializers.ModelSerializer):
@@ -53,6 +116,8 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
                     attempt["grade_system"] = "yds"
                 elif session_type == "bouldering":
                     attempt["grade_system"] = "v_scale"
+                else:
+                    attempt["grade_system"] = "other"
         return attrs
 
     def get_attempt_count(self, obj):
@@ -65,7 +130,8 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
         attempts_data = validated_data.pop("attempts", [])
         session = ClimbingSession.objects.create(**validated_data)
         for attempt_data in attempts_data:
-            ClimbAttempt.objects.create(session=session, **attempt_data)
+            attempt = ClimbAttempt.objects.create(session=session, **attempt_data)
+            maybe_mark_project_sent(attempt.project, session, attempt.result)
         return session
 
     def update(self, instance, validated_data):
@@ -76,11 +142,20 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
         if attempts_data is not None:
             instance.attempts.all().delete()
             for attempt_data in attempts_data:
-                ClimbAttempt.objects.create(session=instance, **attempt_data)
+                attempt = ClimbAttempt.objects.create(session=instance, **attempt_data)
+                maybe_mark_project_sent(attempt.project, instance, attempt.result)
         return instance
 
 
 class ClimbingProjectSerializer(serializers.ModelSerializer):
+    linked_attempt_count = serializers.SerializerMethodField()
+    linked_session_count = serializers.SerializerMethodField()
+    latest_attempt_date = serializers.SerializerMethodField()
+    latest_attempt_result = serializers.SerializerMethodField()
+    days_active = serializers.SerializerMethodField()
+    days_since_last_attempt = serializers.SerializerMethodField()
+    attempt_summary_label = serializers.SerializerMethodField()
+
     class Meta:
         model = ClimbingProject
         fields = [
@@ -94,7 +169,71 @@ class ClimbingProjectSerializer(serializers.ModelSerializer):
             "started_at",
             "sent_at",
             "notes",
+            "linked_attempt_count",
+            "linked_session_count",
+            "latest_attempt_date",
+            "latest_attempt_result",
+            "days_active",
+            "days_since_last_attempt",
+            "attempt_summary_label",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "linked_attempt_count",
+            "linked_session_count",
+            "latest_attempt_date",
+            "latest_attempt_result",
+            "days_active",
+            "days_since_last_attempt",
+            "attempt_summary_label",
+            "created_at",
+            "updated_at",
+        ]
+
+    def _linked_attempts(self, obj):
+        return obj.attempts.select_related("session").order_by("-session__date", "-created_at", "-id")
+
+    def _latest_attempt(self, obj):
+        return self._linked_attempts(obj).first()
+
+    def get_linked_attempt_count(self, obj):
+        return obj.attempts.count()
+
+    def get_linked_session_count(self, obj):
+        return obj.attempts.values("session_id").distinct().count()
+
+    def get_latest_attempt_date(self, obj):
+        latest_attempt = self._latest_attempt(obj)
+        return latest_attempt.session.date.isoformat() if latest_attempt else None
+
+    def get_latest_attempt_result(self, obj):
+        latest_attempt = self._latest_attempt(obj)
+        return latest_attempt.result if latest_attempt else ""
+
+    def get_days_active(self, obj):
+        start_date = obj.started_at or timezone.localtime(obj.created_at).date()
+        end_date = obj.sent_at or timezone.localdate()
+        return max(0, (end_date - start_date).days)
+
+    def get_days_since_last_attempt(self, obj):
+        latest_attempt = self._latest_attempt(obj)
+        if not latest_attempt:
+            return None
+        return max(0, (timezone.localdate() - latest_attempt.session.date).days)
+
+    def get_attempt_summary_label(self, obj):
+        attempt_count = self.get_linked_attempt_count(obj)
+        session_count = self.get_linked_session_count(obj)
+        latest_attempt = self._latest_attempt(obj)
+        parts = [
+            f"{attempt_count} linked attempt{'s' if attempt_count != 1 else ''}",
+            f"{session_count} session{'s' if session_count != 1 else ''}",
+        ]
+        if latest_attempt:
+            formatted_date = latest_attempt.session.date.strftime("%b %d").replace(" 0", " ")
+            parts.append(f"Last attempt: {formatted_date} - {latest_attempt.result}")
+        else:
+            parts.append("No linked attempts yet")
+        return " across ".join(parts[:2]) + (f" / {parts[2]}" if len(parts) > 2 else "")

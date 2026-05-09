@@ -15,7 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { api, type Exercise, type ExerciseReferenceSource, type MuscleGroup } from "@/lib/api";
+import { api, type ClimbingProject, type Exercise, type ExerciseReferenceSource, type MuscleGroup } from "@/lib/api";
 import { formatPace, todayISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { detectReferenceSource } from "@/lib/video";
@@ -27,6 +27,7 @@ type QuickLogSheetProps = {
   onOpenChange: (open: boolean) => void;
   initialMode?: QuickLogMode;
   initialGymExerciseId?: number | null;
+  initialClimbingProjectId?: number | null;
   onSaved?: () => void;
 };
 
@@ -111,7 +112,7 @@ function SuccessBanner({ message }: { message: string | null }) {
   );
 }
 
-export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initialGymExerciseId = null, onSaved }: QuickLogSheetProps) {
+export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initialGymExerciseId = null, initialClimbingProjectId = null, onSaved }: QuickLogSheetProps) {
   const [mode, setMode] = useState<QuickLogMode | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const activeMode = mode ?? initialMode;
@@ -161,7 +162,7 @@ export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initia
           {activeMode === "check-in" ? <CheckInForm onSuccess={handleSuccess} /> : null}
           {activeMode === "run" ? <RunForm onSuccess={handleSuccess} /> : null}
           {activeMode === "gym" ? <GymForm initialExerciseId={initialGymExerciseId} onSuccess={handleSuccess} /> : null}
-          {activeMode === "climb" ? <ClimbForm onSuccess={handleSuccess} /> : null}
+          {activeMode === "climb" ? <ClimbForm initialProjectId={initialClimbingProjectId} onSuccess={handleSuccess} /> : null}
           {activeMode === "project" ? <ProjectForm onSuccess={handleSuccess} /> : null}
         </motion.div>
       </SheetContent>
@@ -501,11 +502,15 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
   );
 }
 
-function ClimbForm({ onSuccess }: { onSuccess: (message: string) => void }) {
+function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: number | null; onSuccess: (message: string) => void }) {
   const [sessionType, setSessionType] = useState("bouldering");
   const [location, setLocation] = useState("");
+  const [climbName, setClimbName] = useState("");
   const [gradeSystem, setGradeSystem] = useState("v_scale");
   const [grade, setGrade] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ? String(initialProjectId) : "");
+  const [projects, setProjects] = useState<ClimbingProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
   const [result, setResult] = useState("send");
   const [attempts, setAttempts] = useState("1");
   const [style, setStyle] = useState("");
@@ -519,6 +524,54 @@ function ClimbForm({ onSuccess }: { onSuccess: (message: string) => void }) {
     if (value === "top_rope") setGradeSystem("yds");
   }
 
+  useEffect(() => {
+    let active = true;
+    async function loadProjects() {
+      setProjectsLoading(true);
+      try {
+        const data = await api.climbingProjects.list();
+        if (active) setProjects(data);
+      } finally {
+        if (active) setProjectsLoading(false);
+      }
+    }
+    void loadProjects();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!initialProjectId || projects.length === 0) return;
+    const project = projects.find((item) => item.id === initialProjectId);
+    if (project) applyProject(project);
+    // Apply only after the initial project becomes available.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProjectId, projects]);
+
+  const activeProjects = projects.filter((project) => project.status === "active");
+  const sortedProjects = [...activeProjects].sort((a, b) => {
+    const aMatch = a.session_type === sessionType ? 0 : 1;
+    const bMatch = b.session_type === sessionType ? 0 : 1;
+    return aMatch - bMatch || a.name.localeCompare(b.name);
+  });
+
+  function applyProject(project: ClimbingProject) {
+    setSelectedProjectId(String(project.id));
+    if (project.session_type) handleSessionTypeChange(project.session_type);
+    if (!climbName) setClimbName(project.name);
+    if (!grade) setGrade(project.grade);
+    setGradeSystem(project.grade_system);
+    if (!location && project.location) setLocation(project.location);
+  }
+
+  function handleProjectChange(value: string) {
+    setSelectedProjectId(value);
+    if (!value) return;
+    const project = projects.find((item) => String(item.id) === value);
+    if (project) applyProject(project);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -529,6 +582,8 @@ function ClimbForm({ onSuccess }: { onSuccess: (message: string) => void }) {
         location,
         session_type: sessionType,
         attempts: [{
+          project: selectedProjectId ? Number(selectedProjectId) : null,
+          climb_name: climbName,
           grade_system: gradeSystem,
           grade,
           result,
@@ -552,12 +607,24 @@ function ClimbForm({ onSuccess }: { onSuccess: (message: string) => void }) {
         <FieldGrid>
           <Field label="Type"><select className={selectClass} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
           <Field label="Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Local gym" /></Field>
+          <Field label="Project">
+            <select className={selectClass} value={selectedProjectId} onChange={(event) => handleProjectChange(event.target.value)} disabled={projectsLoading}>
+              <option value="">No project</option>
+              {sortedProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name} - {project.grade}{project.session_type === sessionType ? "" : ` (${optionLabel(project.session_type)})`}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Climb name"><Input value={climbName} onChange={(event) => setClimbName(event.target.value)} placeholder="Optional route or boulder name" /></Field>
           <Field label="Grade system"><select className={selectClass} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
           <Field label="Grade"><Input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder={sessionType === "top_rope" ? "5.10a" : "V4"} required /></Field>
           <Field label="Result"><select className={selectClass} value={result} onChange={(event) => setResult(event.target.value)}>{resultOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
           <Field label="Attempts"><Input inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
           <Field label="Style"><select className={selectClass} value={style} onChange={(event) => setStyle(event.target.value)}>{styleOptions.map((option) => <option key={option || "none"} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
+        <p className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">Link this attempt to a project when you want it counted in project history.</p>
         <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Beta, movement style, or what to try next." /></Field>
       </FormPanel>
       <ErrorState error={error} />

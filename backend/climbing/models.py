@@ -63,6 +63,13 @@ class ClimbingSession(models.Model):
 
 class ClimbAttempt(models.Model):
     session = models.ForeignKey(ClimbingSession, on_delete=models.CASCADE, related_name="attempts")
+    project = models.ForeignKey(
+        "ClimbingProject",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="attempts",
+    )
     climb_name = models.CharField(max_length=180, blank=True)
     grade_system = models.CharField(max_length=24, choices=ClimbingChoices.GradeSystem.choices)
     grade = models.CharField(max_length=40)

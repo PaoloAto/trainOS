@@ -23,9 +23,9 @@ class ClimbingSessionAdmin(admin.ModelAdmin):
 
 @admin.register(ClimbAttempt)
 class ClimbAttemptAdmin(admin.ModelAdmin):
-    list_display = ("session", "grade", "grade_system", "result", "attempts", "style", "climb_name")
-    list_filter = ("grade_system", "result", "style", "session__session_type", "session__date")
-    search_fields = ("climb_name", "grade", "notes", "session__user__username", "session__location")
+    list_display = ("session", "project", "grade", "grade_system", "result", "attempts", "style", "climb_name")
+    list_filter = ("grade_system", "result", "style", "session__session_type", "session__date", "project__status")
+    search_fields = ("climb_name", "grade", "notes", "project__name", "session__user__username", "session__location")
 
 
 @admin.register(ClimbingProject)

@@ -1,8 +1,16 @@
 from django.db.models import Count
 from rest_framework import viewsets
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import ClimbingProject, ClimbingSession
 from .serializers import ClimbingProjectSerializer, ClimbingSessionSerializer
+from .services.analytics_service import climbing_analytics_for_user
+
+
+class ClimbingAnalyticsView(APIView):
+    def get(self, request):
+        return Response(climbing_analytics_for_user(request.user))
 
 
 class ClimbingSessionViewSet(viewsets.ModelViewSet):
