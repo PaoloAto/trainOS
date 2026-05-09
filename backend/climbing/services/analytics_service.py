@@ -284,11 +284,14 @@ def _project_latest_attempt(project: ClimbingProject) -> ClimbAttempt | None:
 def _project_linked_stats(project: ClimbingProject, today: date) -> dict:
     linked_attempts = _project_linked_attempts(project)
     latest_attempt = linked_attempts.first()
-    linked_attempt_count = linked_attempts.count()
+    linked_log_count = linked_attempts.count()
+    total_try_count = _attempt_units(linked_attempts)
     linked_session_count = linked_attempts.values("session_id").distinct().count()
     latest_attempt_date = latest_attempt.session.date if latest_attempt else None
     return {
-        "linked_attempt_count": linked_attempt_count,
+        "linked_attempt_count": linked_log_count,
+        "linked_log_count": linked_log_count,
+        "total_try_count": total_try_count,
         "linked_session_count": linked_session_count,
         "latest_attempt_date": latest_attempt_date,
         "latest_attempt_result": latest_attempt.result if latest_attempt else "",
@@ -296,15 +299,35 @@ def _project_linked_stats(project: ClimbingProject, today: date) -> dict:
     }
 
 
+def _project_attempt_history(project: ClimbingProject) -> list[dict]:
+    return [
+        {
+            "id": attempt.id,
+            "session_id": attempt.session_id,
+            "date": attempt.session.date.isoformat(),
+            "session_type": attempt.session.session_type,
+            "location": attempt.session.location,
+            "grade": attempt.grade,
+            "grade_system": attempt.grade_system,
+            "result": attempt.result,
+            "tries_count": max(1, attempt.attempts),
+            "notes": attempt.notes,
+            "style": attempt.style,
+        }
+        for attempt in project.attempts.select_related("session").order_by("session__date", "created_at", "id")
+    ]
+
+
 def _project_summary(project: ClimbingProject, today: date | None = None) -> dict:
     today = today or timezone.localdate()
     linked_stats = _project_linked_stats(project, today)
     start_date = project.started_at or timezone.localtime(project.created_at).date()
     end_date = project.sent_at or today
-    attempt_count = linked_stats["linked_attempt_count"]
+    log_count = linked_stats["linked_log_count"]
+    try_count = linked_stats["total_try_count"]
     session_count = linked_stats["linked_session_count"]
     summary_parts = [
-        f"{attempt_count} linked attempt{'s' if attempt_count != 1 else ''}",
+        f"{try_count} tr{'y' if try_count == 1 else 'ies'}",
         f"{session_count} session{'s' if session_count != 1 else ''}",
     ]
     if linked_stats["latest_attempt_date"]:
@@ -322,17 +345,20 @@ def _project_summary(project: ClimbingProject, today: date | None = None) -> dic
         "session_type": project.session_type,
         "started_at": project.started_at.isoformat() if project.started_at else None,
         "sent_at": project.sent_at.isoformat() if project.sent_at else None,
-        "linked_attempt_count": attempt_count,
+        "linked_attempt_count": log_count,
+        "linked_log_count": log_count,
+        "total_try_count": try_count,
         "linked_session_count": session_count,
         "latest_attempt_date": linked_stats["latest_attempt_date"].isoformat() if linked_stats["latest_attempt_date"] else None,
         "latest_attempt_result": linked_stats["latest_attempt_result"],
         "days_active": max(0, (end_date - start_date).days),
         "days_since_last_attempt": linked_stats["days_since_last_attempt"],
         "attempt_summary_label": " across ".join(summary_parts[:2]) + f" / {summary_parts[2]}",
-        "total_attempts": attempt_count,
+        "total_attempts": try_count,
         "sessions_worked": session_count,
         "latest_result": linked_stats["latest_attempt_result"],
         "progress_label": _project_progress_label(project, linked_stats),
+        "attempt_history": _project_attempt_history(project),
         "updated_at": project.updated_at.isoformat(),
     }
 
@@ -340,7 +366,7 @@ def _project_summary(project: ClimbingProject, today: date | None = None) -> dic
 def _project_progress_label(project: ClimbingProject, linked_stats: dict) -> str:
     if project.status == ClimbingProject.Status.SENT:
         return "Sent project."
-    if linked_stats["linked_attempt_count"] == 0:
+    if linked_stats["linked_log_count"] == 0:
         return "No linked attempts yet."
     days_since = linked_stats["days_since_last_attempt"]
     if days_since is not None and days_since >= STALE_PROJECT_DAYS:
@@ -368,7 +394,7 @@ def _project_analytics(projects: list[ClimbingProject], today: date) -> dict:
     ]
     for project in projects:
         summary = _project_summary(project, today)
-        if summary["linked_attempt_count"] or project.status == ClimbingProject.Status.ACTIVE:
+        if summary["linked_log_count"] or project.status == ClimbingProject.Status.ACTIVE:
             project_attempt_totals.append(summary)
     sent_projects = [project for project in projects if project.status == ClimbingProject.Status.SENT]
     recently_sent = sorted(
@@ -383,7 +409,7 @@ def _project_analytics(projects: list[ClimbingProject], today: date) -> dict:
         "abandoned_count": status_counts[ClimbingProject.Status.ABANDONED],
         "stale_projects": [_project_summary(project, today) for project in sorted(stale_projects, key=lambda project: project.started_at or timezone.localtime(project.created_at).date())[:5]],
         "recently_sent_projects": [_project_summary(project, today) for project in recently_sent],
-        "project_attempt_totals": sorted(project_attempt_totals, key=lambda project: project["linked_attempt_count"], reverse=True),
+        "project_attempt_totals": sorted(project_attempt_totals, key=lambda project: project["total_try_count"], reverse=True),
     }
 
 

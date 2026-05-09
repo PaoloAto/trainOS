@@ -496,6 +496,21 @@ export type ClimbAttemptInput = {
   result: string;
   attempts: number;
   notes?: string;
+  mark_project_sent?: boolean;
+};
+
+export type ClimbingProjectAttemptHistoryItem = {
+  id: number;
+  session_id: number;
+  date: string;
+  session_type: string;
+  location: string;
+  grade: string;
+  grade_system: string;
+  result: string;
+  tries_count: number;
+  notes: string;
+  style: string;
 };
 
 export type ClimbingSession = {
@@ -533,12 +548,15 @@ export type ClimbingProject = {
   sent_at: string | null;
   notes: string;
   linked_attempt_count: number;
+  linked_log_count: number;
+  total_try_count: number;
   linked_session_count: number;
   latest_attempt_date: string | null;
   latest_attempt_result: string;
   days_active: number;
   days_since_last_attempt: number | null;
   attempt_summary_label: string;
+  attempt_history: ClimbingProjectAttemptHistoryItem[];
   total_attempts: number;
   sessions_worked: number;
   latest_result: string;
@@ -570,12 +588,15 @@ export type ClimbingProjectSummary = {
   started_at: string | null;
   sent_at: string | null;
   linked_attempt_count: number;
+  linked_log_count: number;
+  total_try_count: number;
   linked_session_count: number;
   latest_attempt_date: string | null;
   latest_attempt_result: string;
   days_active: number;
   days_since_last_attempt: number | null;
   attempt_summary_label: string;
+  attempt_history: ClimbingProjectAttemptHistoryItem[];
   total_attempts: number;
   sessions_worked: number;
   latest_result: string;

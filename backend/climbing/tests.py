@@ -318,10 +318,14 @@ class ClimbingProjectAttemptLinkTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()[0]
         self.assertEqual(payload["linked_attempt_count"], 1)
+        self.assertEqual(payload["linked_log_count"], 1)
+        self.assertEqual(payload["total_try_count"], 3)
         self.assertEqual(payload["linked_session_count"], 1)
         self.assertEqual(payload["latest_attempt_date"], self.today.isoformat())
         self.assertEqual(payload["latest_attempt_result"], "project")
-        self.assertIn("1 linked attempt", payload["attempt_summary_label"])
+        self.assertIn("3 tries across 1 session", payload["attempt_summary_label"])
+        self.assertEqual(payload["attempt_history"][0]["tries_count"], 3)
+        self.assertEqual(payload["attempt_history"][0]["result"], "project")
 
     def test_analytics_includes_project_linked_counts_and_user_scoping(self):
         project = self._project()
@@ -353,6 +357,8 @@ class ClimbingProjectAttemptLinkTests(APITestCase):
         self.assertEqual(len(totals), 1)
         self.assertEqual(totals[0]["name"], project.name)
         self.assertEqual(totals[0]["linked_attempt_count"], 1)
+        self.assertEqual(totals[0]["linked_log_count"], 1)
+        self.assertEqual(totals[0]["total_try_count"], 3)
         self.assertEqual(totals[0]["linked_session_count"], 1)
 
     def test_project_progress_and_stale_logic_use_linked_attempts(self):
@@ -391,8 +397,35 @@ class ClimbingProjectAttemptLinkTests(APITestCase):
         project_progress = {item["name"]: item for item in payload["project_progress"]}
         stale_projects = {item["name"]: item for item in payload["projects"]["stale_projects"]}
 
-        self.assertEqual(project_progress["Blue Overhang"]["total_attempts"], 1)
+        self.assertEqual(project_progress["Blue Overhang"]["total_attempts"], 5)
+        self.assertEqual(project_progress["Blue Overhang"]["total_try_count"], 5)
+        self.assertEqual(project_progress["Blue Overhang"]["linked_log_count"], 1)
         self.assertEqual(project_progress["Blue Overhang"]["sessions_worked"], 1)
         self.assertEqual(project_progress["Blue Overhang"]["latest_result"], "project")
         self.assertIn("Untouched", project_progress["Blue Overhang"]["progress_label"])
         self.assertIn("Blue Overhang", stale_projects)
+
+    def test_mark_project_sent_false_keeps_project_active(self):
+        project = self._project()
+
+        response = self.client.post(
+            self.session_url,
+            {
+                "date": self.today.isoformat(),
+                "session_type": "bouldering",
+                "attempts": [
+                    {
+                        "project": project.id,
+                        "result": "send",
+                        "attempts": 1,
+                        "mark_project_sent": False,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        project.refresh_from_db()
+        self.assertEqual(project.status, ClimbingProject.Status.ACTIVE)
+        self.assertIsNone(project.sent_at)

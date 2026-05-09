@@ -15,16 +15,7 @@ import { cn } from "@/lib/utils";
 type ClimbView = "sessions" | "projects";
 type SessionFilter = "all" | "bouldering" | "top_rope" | "training_other";
 type ProjectFilter = "active" | "stale" | "sent" | "paused" | "abandoned" | "all";
-type ProjectAttemptHistoryItem = {
-  id: number;
-  date: string;
-  location: string;
-  session_type: string;
-  grade: string;
-  result: string;
-  attempts: number;
-  notes: string;
-};
+type ProjectAttemptHistoryItem = ClimbingProject["attempt_history"][number];
 
 const sessionTypeOptions = ["bouldering", "top_rope", "sport", "trad", "training", "other"];
 const gradeSystemOptions = ["v_scale", "yds", "font", "other"];
@@ -161,7 +152,6 @@ export function ClimbPage() {
                 analytics={analytics}
                 projects={filteredProjects}
                 allProjects={projects}
-                sessions={sessions}
                 filter={projectFilter}
                 updatingProjectId={updatingProjectId}
                 onFilterChange={setProjectFilter}
@@ -193,7 +183,6 @@ export function ClimbPage() {
       />
       <ProjectDetailSheet
         project={selectedProject}
-        sessions={sessions}
         open={selectedProject !== null}
         updatingProjectId={updatingProjectId}
         onOpenChange={(open) => {
@@ -281,11 +270,9 @@ function SessionsView({
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-4 md:p-6">
-          <Metric label="Total sessions" value={String(analytics.summary.total_sessions)} />
-          <Metric label="This month" value={String(analytics.summary.sessions_this_month)} />
-          <Metric label="Attempts month" value={String(analytics.summary.attempts_this_month)} />
-          <Metric label="Active projects" value={String(analytics.summary.active_project_count)} />
+        <div className="grid gap-3 p-5 md:grid-cols-2 md:p-6">
+          <SessionMonthHero analytics={analytics} />
+          <ActiveProjectsHero analytics={analytics} />
         </div>
       </Card>
 
@@ -321,7 +308,6 @@ function ProjectsView({
   analytics,
   projects,
   allProjects,
-  sessions,
   filter,
   updatingProjectId,
   onFilterChange,
@@ -334,7 +320,6 @@ function ProjectsView({
   analytics: ClimbingAnalytics;
   projects: ClimbingProject[];
   allProjects: ClimbingProject[];
-  sessions: ClimbingSession[];
   filter: ProjectFilter;
   updatingProjectId: number | null;
   onFilterChange: (filter: ProjectFilter) => void;
@@ -386,7 +371,7 @@ function ProjectsView({
             <ProjectCard
               key={project.id}
               project={project}
-              linkedAttempts={attemptsForProject(sessions, project.id)}
+              linkedAttempts={project.attempt_history}
               delay={index * 0.04}
               updating={updatingProjectId === project.id}
               onOpen={() => onOpenProject(project)}
@@ -401,17 +386,63 @@ function ProjectsView({
   );
 }
 
+function SessionMonthHero({ analytics }: { analytics: ClimbingAnalytics }) {
+  const maxSessions = Math.max(1, ...analytics.weekly_climbing_trend.map((week) => week.session_count));
+  return (
+    <div className="rounded-3xl border border-indigo/50 bg-indigo-muted p-4">
+      <p className="text-[0.68rem] uppercase tracking-[0.2em] text-indigo">Sessions this month</p>
+      <div className="mt-3 flex items-end justify-between gap-4">
+        <div>
+          <p className="metric-number text-4xl font-bold text-text-primary">{analytics.summary.sessions_this_month}</p>
+          <p className="mt-1 text-sm text-text-secondary">+{analytics.summary.sessions_this_week} this week</p>
+        </div>
+        <div className="flex h-16 flex-1 items-end gap-1">
+          {analytics.weekly_climbing_trend.map((week) => (
+            <div key={week.week_start} className="flex flex-1 items-end rounded-full bg-bg-card/70">
+              <div className="w-full rounded-full bg-indigo" style={{ height: `${barWidth(week.session_count, maxSessions)}%` }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActiveProjectsHero({ analytics }: { analytics: ClimbingAnalytics }) {
+  const activeProjects = analytics.project_progress.slice(0, 5);
+  return (
+    <div className="rounded-3xl border border-border bg-bg-elevated p-4">
+      <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Active projects</p>
+      <div className="mt-3 flex items-end justify-between gap-4">
+        <div>
+          <p className="metric-number text-4xl font-bold text-text-primary">{analytics.summary.active_project_count}</p>
+          <p className="mt-1 text-sm text-text-secondary">{analytics.summary.sent_project_count} sent total</p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {activeProjects.length ? activeProjects.map((project) => (
+            <span key={project.id} className="rounded-full border border-indigo bg-indigo-muted px-3 py-1 text-xs font-semibold text-indigo">{project.grade}</span>
+          )) : <span className="rounded-full border border-border bg-bg-card px-3 py-1 text-xs font-semibold text-text-muted">No active grades</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BoulderingProgressionCard({ analytics }: { analytics: ClimbingAnalytics }) {
-  const sendRates = analytics.bouldering_progression.send_rate_by_grade;
-  const bestRate = sendRates.length ? Math.max(...sendRates.map((item) => item.success_rate)) : 0;
+  const bestRate = bestRateMetric(analytics.bouldering_progression.send_rate_by_grade);
+  const hasData = analytics.bouldering_progression.grade_distribution.length > 0;
   return (
     <Card className="border-indigo/50">
       <SectionTitle icon={Mountain} eyebrow="Bouldering progression" title="V-grade baseline" />
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric label="Highest sent" value={analytics.bouldering_progression.highest_sent_grade ?? "--"} />
+      <div className="mt-5 rounded-3xl border border-indigo bg-indigo-muted p-5 text-center">
+        <p className="text-xs uppercase tracking-[0.18em] text-indigo">Highest sent</p>
+        <p className="metric-number mt-2 text-5xl font-bold text-text-primary">{analytics.bouldering_progression.highest_sent_grade ?? "--"}</p>
+        {!hasData ? <p className="mt-3 text-sm leading-6 text-text-secondary">No bouldering data yet. Log V-scale attempts to build your grade baseline.</p> : null}
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3">
         <Metric label="Highest tried" value={analytics.bouldering_progression.highest_attempted_grade ?? "--"} />
         <Metric label="Recent sent" value={analytics.bouldering_progression.recent_highest_sent_grade ?? "--"} />
-        <Metric label="Best send rate" value={`${Math.round(bestRate * 100)}`} unit="%" />
+        <Metric label={`Best rate${bestRate.grade ? ` at ${bestRate.grade}` : ""}`} value={bestRate.value} />
       </div>
       <p className="mt-4 rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">{analytics.bouldering_progression.v4_gap_label}</p>
     </Card>
@@ -419,20 +450,25 @@ function BoulderingProgressionCard({ analytics }: { analytics: ClimbingAnalytics
 }
 
 function TopRopeProgressionCard({ analytics }: { analytics: ClimbingAnalytics }) {
-  const cleanRates = analytics.top_rope_progression.clean_rate_by_grade;
-  const bestRate = cleanRates.length ? Math.max(...cleanRates.map((item) => item.success_rate)) : 0;
+  const bestRate = bestRateMetric(analytics.top_rope_progression.clean_rate_by_grade);
+  const hasData = analytics.top_rope_progression.grade_distribution.length > 0;
   return (
     <Card className="border-green/50">
       <SectionTitle icon={CheckCircle2} eyebrow="Top-rope progression" title="Clean route baseline" />
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric label="Highest clean" value={analytics.top_rope_progression.highest_clean_grade ?? "--"} />
+      <div className="mt-5 rounded-3xl border border-green bg-green-muted p-5 text-center">
+        <p className="text-xs uppercase tracking-[0.18em] text-green">Highest clean</p>
+        <p className="metric-number mt-2 text-5xl font-bold text-text-primary">{analytics.top_rope_progression.highest_clean_grade ?? "--"}</p>
+        {!hasData ? <p className="mt-3 text-sm leading-6 text-text-secondary">No top-rope data yet. Log YDS routes to build your clean-route baseline.</p> : null}
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3">
         <Metric label="Highest tried" value={analytics.top_rope_progression.highest_attempted_grade ?? "--"} />
         <Metric label="Recent clean" value={analytics.top_rope_progression.recent_highest_clean_grade ?? "--"} />
-        <Metric label="Best clean rate" value={`${Math.round(bestRate * 100)}`} unit="%" />
+        <Metric label={`Best rate${bestRate.grade ? ` at ${bestRate.grade}` : ""}`} value={bestRate.value} />
       </div>
-      <p className="mt-4 rounded-2xl border border-border bg-bg-elevated p-3 text-sm leading-6 text-text-secondary">
-        Clean and complete results count as route success. Takes and falls stay visible so top-rope confidence remains honest.
-      </p>
+      <details className="mt-4 rounded-2xl border border-border bg-bg-elevated p-3 text-sm leading-6 text-text-secondary">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">How route success is counted</summary>
+        <p className="mt-2">Clean and complete results count as route success. Takes and falls stay visible so top-rope confidence remains honest.</p>
+      </details>
     </Card>
   );
 }
@@ -473,7 +509,7 @@ function GradeDistributionCard({ title, items, successLabel }: { title: string; 
             label={item.grade}
             count={item.attempt_count}
             max={maxAttempts}
-            detail={`${Math.round(item.success_rate * 100)}% ${successLabel} / ${item.success_count} success`}
+            detail={`${rateDisplay(item)} ${successLabel} / ${item.success_count} success`}
           />
         )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No grade data yet. Log attempts to build this distribution.</p>}
       </div>
@@ -598,7 +634,7 @@ function ProjectProgressOverview({ analytics }: { analytics: ClimbingAnalytics }
               </div>
               <span className="metric-number text-sm font-bold text-indigo">{project.total_attempts}</span>
             </div>
-            <p className="mt-3 text-sm leading-6 text-text-secondary">{project.progress_label}</p>
+            <p className="mt-3 text-sm leading-6 text-text-secondary">{project.total_attempts} tr{project.total_attempts === 1 ? "y" : "ies"} / {project.progress_label}</p>
           </div>
         )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No active project attempts yet. Link attempts from quick log to make project progress visible.</p>}
       </div>
@@ -679,7 +715,7 @@ function ProjectCard({
           <span className={cn("rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]", project.status === "sent" ? "border-green bg-green-muted text-green" : stale ? "border-amber bg-amber-muted text-amber" : "border-indigo bg-indigo-muted text-indigo")}>{stale ? "Stale" : labelize(project.status)}</span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <Metric label="Linked attempts" value={String(project.linked_attempt_count)} />
+          <Metric label="Tries" value={String(project.total_try_count)} />
           <Metric label="Sessions" value={String(project.linked_session_count)} />
           <Metric label="Last attempt" value={project.latest_attempt_date ? formatShortDate(project.latest_attempt_date) : "--"} />
           <Metric label="Latest result" value={project.latest_result ? labelize(project.latest_result) : "--"} />
@@ -710,7 +746,6 @@ function ProjectCard({
 
 function ProjectDetailSheet({
   project,
-  sessions,
   open,
   updatingProjectId,
   onOpenChange,
@@ -719,7 +754,6 @@ function ProjectDetailSheet({
   onStatusChange,
 }: {
   project: ClimbingProject | null;
-  sessions: ClimbingSession[];
   open: boolean;
   updatingProjectId: number | null;
   onOpenChange: (open: boolean) => void;
@@ -728,7 +762,7 @@ function ProjectDetailSheet({
   onStatusChange: (project: ClimbingProject, status: ProjectFilter) => void | Promise<void>;
 }) {
   if (!project) return null;
-  const linkedAttempts = attemptsForProject(sessions, project.id);
+  const linkedAttempts = project.attempt_history;
   const updating = updatingProjectId === project.id;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -751,7 +785,7 @@ function ProjectDetailSheet({
               </span>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <Metric label="Attempts" value={String(project.linked_attempt_count)} />
+              <Metric label="Tries" value={String(project.total_try_count)} />
               <Metric label="Sessions" value={String(project.linked_session_count)} />
               <Metric label="Days active" value={String(project.days_active)} />
               <Metric label="Latest result" value={project.latest_result ? labelize(project.latest_result) : "--"} />
@@ -777,20 +811,20 @@ function ProjectDetailSheet({
           </div>
 
           <div className="space-y-3">
-            <SectionHeader label="Attempt history" description="Linked attempts from climbing sessions." />
+            <SectionHeader label="Project timeline" description="Linked attempts ordered oldest to newest so the progress story is visible." />
             {linkedAttempts.length ? linkedAttempts.map((attempt) => (
               <div key={attempt.id} className="rounded-2xl border border-border bg-bg-elevated p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-text-primary">{formatShortDate(attempt.date)} / {attempt.grade} / {labelize(attempt.result)}</p>
-                    <p className="mt-1 text-xs text-text-muted">{attempt.location || "No location"} / {attempt.attempts} attempt{attempt.attempts === 1 ? "" : "s"}</p>
+                    <p className="mt-1 text-xs text-text-muted">{attempt.location || "No location"} / {attempt.tries_count} tr{attempt.tries_count === 1 ? "y" : "ies"}</p>
                   </div>
                   <span className="rounded-full border border-indigo bg-indigo-muted px-3 py-1 text-xs font-semibold text-indigo">{labelize(attempt.session_type)}</span>
                 </div>
                 {attempt.notes ? <p className="mt-3 text-sm leading-6 text-text-secondary">{attempt.notes}</p> : null}
               </div>
             )) : (
-              <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No linked attempts yet. Use Log attempt to connect a climbing session to this project.</p>
+              <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No linked attempts yet. Log an attempt from this project to build the timeline.</p>
             )}
           </div>
         </div>
@@ -956,25 +990,6 @@ function barWidth(value: number, maxValue: number) {
   return Math.max(8, (value / Math.max(1, maxValue)) * 100);
 }
 
-function attemptsForProject(sessions: ClimbingSession[], projectId: number): ProjectAttemptHistoryItem[] {
-  return sessions
-    .flatMap((session) =>
-      session.attempts
-        .filter((attempt) => attempt.project === projectId)
-        .map((attempt) => ({
-          id: attempt.id,
-          date: session.date,
-          location: session.location,
-          session_type: session.session_type,
-          grade: attempt.grade,
-          result: attempt.result,
-          attempts: attempt.attempts,
-          notes: attempt.notes,
-        })),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
-}
-
 function filterSessions(sessions: ClimbingSession[], filter: SessionFilter) {
   if (filter === "all") return sessions;
   if (filter === "training_other") {
@@ -992,6 +1007,18 @@ function projectFilterEmptyMessage(filter: ProjectFilter) {
   if (filter === "sent") return "No sent projects yet. Linked sends and clean routes will appear here.";
   if (filter === "active") return "No active projects. Create a project to track attempts.";
   return "No projects match this status filter.";
+}
+
+function rateDisplay(item: { attempt_count: number; success_rate: number }) {
+  if (item.attempt_count < 3) return "--";
+  return `${Math.round(item.success_rate * 100)}%`;
+}
+
+function bestRateMetric(items: ClimbingAnalytics["bouldering_progression"]["send_rate_by_grade"]) {
+  const eligible = items.filter((item) => item.attempt_count >= 3);
+  if (!eligible.length) return { value: "--", grade: "" };
+  const best = [...eligible].sort((a, b) => b.success_rate - a.success_rate || b.attempt_count - a.attempt_count)[0];
+  return { value: `${Math.round(best.success_rate * 100)}%`, grade: best.grade };
 }
 
 function storedClimbView(): ClimbView {

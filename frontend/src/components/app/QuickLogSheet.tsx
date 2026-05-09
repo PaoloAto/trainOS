@@ -42,7 +42,14 @@ const equipmentOptions = ["barbell", "dumbbell", "machine", "cable", "bodyweight
 const referenceSourceOptions: ExerciseReferenceSource[] = ["youtube", "instagram", "tiktok", "website", "other"];
 const sessionTypeOptions = ["bouldering", "top_rope", "sport", "trad", "training", "other"];
 const gradeSystemOptions = ["v_scale", "yds", "font", "other"];
-const resultOptions = ["flash", "send", "repeat", "project", "fail", "attempt", "clean", "take", "fall", "complete"];
+const climbResultOptionsBySessionType: Record<string, string[]> = {
+  bouldering: ["flash", "send", "repeat", "project", "fail", "attempt"],
+  top_rope: ["clean", "take", "fall", "complete", "attempt"],
+  sport: ["clean", "take", "fall", "complete", "attempt"],
+  trad: ["clean", "take", "fall", "complete", "attempt"],
+  training: ["complete", "attempt", "fail"],
+  other: ["complete", "attempt", "fail"],
+};
 const styleOptions = ["", "slab", "vertical", "overhang", "roof", "crimpy", "sloper", "pinch", "dyno", "technical", "powerful", "endurance", "other"];
 const projectStatusOptions = ["active", "sent", "paused", "abandoned"];
 
@@ -60,6 +67,22 @@ function toRequiredNumber(value: string, fallback = 0): number {
 function optionLabel(value: string) {
   if (!value) return "None";
   return value.replace("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function climbResultOptionsFor(sessionType: string) {
+  return climbResultOptionsBySessionType[sessionType] ?? climbResultOptionsBySessionType.other;
+}
+
+function defaultClimbResultFor(sessionType: string) {
+  if (sessionType === "bouldering") return "project";
+  if (sessionType === "top_rope" || sessionType === "sport" || sessionType === "trad") return "clean";
+  return "complete";
+}
+
+function isClimbSendLike(sessionType: string, result: string) {
+  if (sessionType === "bouldering") return ["flash", "send"].includes(result);
+  if (["top_rope", "sport", "trad"].includes(sessionType)) return ["clean", "complete"].includes(result);
+  return ["send", "flash", "clean", "complete"].includes(result);
 }
 
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
@@ -511,7 +534,8 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ? String(initialProjectId) : "");
   const [projects, setProjects] = useState<ClimbingProject[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
-  const [result, setResult] = useState("send");
+  const [result, setResult] = useState("project");
+  const [markProjectSent, setMarkProjectSent] = useState(true);
   const [attempts, setAttempts] = useState("1");
   const [style, setStyle] = useState("");
   const [notes, setNotes] = useState("");
@@ -522,6 +546,8 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
     setSessionType(value);
     if (value === "bouldering") setGradeSystem("v_scale");
     if (value === "top_rope") setGradeSystem("yds");
+    const validResults = climbResultOptionsFor(value);
+    setResult((current) => (validResults.includes(current) ? current : defaultClimbResultFor(value)));
   }
 
   useEffect(() => {
@@ -549,12 +575,16 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProjectId, projects]);
 
-  const activeProjects = projects.filter((project) => project.status === "active");
-  const sortedProjects = [...activeProjects].sort((a, b) => {
+  const selectedProject = projects.find((item) => String(item.id) === selectedProjectId) ?? null;
+  const sortedProjects = [...projects].sort((a, b) => {
+    const aActive = a.status === "active" ? 0 : 1;
+    const bActive = b.status === "active" ? 0 : 1;
     const aMatch = a.session_type === sessionType ? 0 : 1;
     const bMatch = b.session_type === sessionType ? 0 : 1;
-    return aMatch - bMatch || a.name.localeCompare(b.name);
+    return aActive - bActive || aMatch - bMatch || a.name.localeCompare(b.name);
   });
+  const resultOptions = climbResultOptionsFor(sessionType);
+  const shouldOfferMarkSent = Boolean(selectedProject && selectedProject.status === "active" && isClimbSendLike(sessionType, result));
 
   function applyProject(project: ClimbingProject) {
     setSelectedProjectId(String(project.id));
@@ -576,6 +606,7 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
     event.preventDefault();
     setSaving(true);
     setError(null);
+    const markProjectSentValue = selectedProject ? (shouldOfferMarkSent ? markProjectSent : false) : true;
     try {
       await api.climbingSessions.create({
         date: todayISODate(),
@@ -590,9 +621,18 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
           attempts: Math.max(1, Math.round(toRequiredNumber(attempts, 1))),
           style,
           notes,
+          mark_project_sent: markProjectSentValue,
         }],
       });
-      onSuccess(`${optionLabel(sessionType)} session saved.`);
+      if (selectedProject) {
+        onSuccess(
+          shouldOfferMarkSent && markProjectSent
+            ? `Attempt linked to ${selectedProject.name}. Project marked sent.`
+            : `Attempt linked to ${selectedProject.name}.`,
+        );
+      } else {
+        onSuccess("Climbing session saved.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save climbing session.");
     } finally {
@@ -624,7 +664,30 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
           <Field label="Attempts"><Input inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
           <Field label="Style"><select className={selectClass} value={style} onChange={(event) => setStyle(event.target.value)}>{styleOptions.map((option) => <option key={option || "none"} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
-        <p className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">Link this attempt to a project when you want it counted in project history.</p>
+        {selectedProject ? (
+          <div className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">
+            <p className="font-semibold text-text-primary">Linked project</p>
+            <p className="mt-1">{selectedProject.name} - {selectedProject.grade} - {optionLabel(selectedProject.session_type || sessionType)}</p>
+            <p className="mt-1">This attempt will count toward project progress.</p>
+            {selectedProject.status !== "active" ? <p className="mt-2 text-text-secondary">This project is not active. You can still log history, but active projects are recommended.</p> : null}
+            {shouldOfferMarkSent ? (
+              <label className="mt-3 flex items-start gap-3 rounded-xl border border-indigo/50 bg-bg-card/60 p-3 text-text-secondary">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-border bg-bg-elevated accent-indigo"
+                  checked={markProjectSent}
+                  onChange={(event) => setMarkProjectSent(event.target.checked)}
+                />
+                <span>
+                  <span className="block font-semibold text-text-primary">Mark project as sent when saved</span>
+                  <span className="text-xs leading-5">Turn this off if this was a clean/send-like drill but the project should stay active.</span>
+                </span>
+              </label>
+            ) : null}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">Link this attempt to a project when you want it counted in project history.</p>
+        )}
         <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Beta, movement style, or what to try next." /></Field>
       </FormPanel>
       <ErrorState error={error} />

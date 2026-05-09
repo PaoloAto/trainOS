@@ -47,6 +47,7 @@ class ClimbAttemptSerializer(serializers.ModelSerializer):
     project = serializers.PrimaryKeyRelatedField(queryset=ClimbingProject.objects.all(), required=False, allow_null=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
     project_status = serializers.CharField(source="project.status", read_only=True)
+    mark_project_sent = serializers.BooleanField(write_only=True, required=False, default=True)
 
     class Meta:
         model = ClimbAttempt
@@ -62,6 +63,7 @@ class ClimbAttemptSerializer(serializers.ModelSerializer):
             "result",
             "attempts",
             "notes",
+            "mark_project_sent",
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
@@ -130,8 +132,10 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
         attempts_data = validated_data.pop("attempts", [])
         session = ClimbingSession.objects.create(**validated_data)
         for attempt_data in attempts_data:
+            mark_project_sent = attempt_data.pop("mark_project_sent", True)
             attempt = ClimbAttempt.objects.create(session=session, **attempt_data)
-            maybe_mark_project_sent(attempt.project, session, attempt.result)
+            if mark_project_sent:
+                maybe_mark_project_sent(attempt.project, session, attempt.result)
         return session
 
     def update(self, instance, validated_data):
@@ -142,19 +146,24 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
         if attempts_data is not None:
             instance.attempts.all().delete()
             for attempt_data in attempts_data:
+                mark_project_sent = attempt_data.pop("mark_project_sent", True)
                 attempt = ClimbAttempt.objects.create(session=instance, **attempt_data)
-                maybe_mark_project_sent(attempt.project, instance, attempt.result)
+                if mark_project_sent:
+                    maybe_mark_project_sent(attempt.project, instance, attempt.result)
         return instance
 
 
 class ClimbingProjectSerializer(serializers.ModelSerializer):
     linked_attempt_count = serializers.SerializerMethodField()
+    linked_log_count = serializers.SerializerMethodField()
+    total_try_count = serializers.SerializerMethodField()
     linked_session_count = serializers.SerializerMethodField()
     latest_attempt_date = serializers.SerializerMethodField()
     latest_attempt_result = serializers.SerializerMethodField()
     days_active = serializers.SerializerMethodField()
     days_since_last_attempt = serializers.SerializerMethodField()
     attempt_summary_label = serializers.SerializerMethodField()
+    attempt_history = serializers.SerializerMethodField()
 
     class Meta:
         model = ClimbingProject
@@ -170,24 +179,30 @@ class ClimbingProjectSerializer(serializers.ModelSerializer):
             "sent_at",
             "notes",
             "linked_attempt_count",
+            "linked_log_count",
+            "total_try_count",
             "linked_session_count",
             "latest_attempt_date",
             "latest_attempt_result",
             "days_active",
             "days_since_last_attempt",
             "attempt_summary_label",
+            "attempt_history",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
             "id",
             "linked_attempt_count",
+            "linked_log_count",
+            "total_try_count",
             "linked_session_count",
             "latest_attempt_date",
             "latest_attempt_result",
             "days_active",
             "days_since_last_attempt",
             "attempt_summary_label",
+            "attempt_history",
             "created_at",
             "updated_at",
         ]
@@ -200,6 +215,12 @@ class ClimbingProjectSerializer(serializers.ModelSerializer):
 
     def get_linked_attempt_count(self, obj):
         return obj.attempts.count()
+
+    def get_linked_log_count(self, obj):
+        return obj.attempts.count()
+
+    def get_total_try_count(self, obj):
+        return sum(max(1, attempt.attempts) for attempt in obj.attempts.all())
 
     def get_linked_session_count(self, obj):
         return obj.attempts.values("session_id").distinct().count()
@@ -224,11 +245,11 @@ class ClimbingProjectSerializer(serializers.ModelSerializer):
         return max(0, (timezone.localdate() - latest_attempt.session.date).days)
 
     def get_attempt_summary_label(self, obj):
-        attempt_count = self.get_linked_attempt_count(obj)
+        try_count = self.get_total_try_count(obj)
         session_count = self.get_linked_session_count(obj)
         latest_attempt = self._latest_attempt(obj)
         parts = [
-            f"{attempt_count} linked attempt{'s' if attempt_count != 1 else ''}",
+            f"{try_count} tr{'y' if try_count == 1 else 'ies'}",
             f"{session_count} session{'s' if session_count != 1 else ''}",
         ]
         if latest_attempt:
@@ -237,3 +258,22 @@ class ClimbingProjectSerializer(serializers.ModelSerializer):
         else:
             parts.append("No linked attempts yet")
         return " across ".join(parts[:2]) + (f" / {parts[2]}" if len(parts) > 2 else "")
+
+    def get_attempt_history(self, obj):
+        attempts = obj.attempts.select_related("session").order_by("session__date", "created_at", "id")
+        return [
+            {
+                "id": attempt.id,
+                "session_id": attempt.session_id,
+                "date": attempt.session.date.isoformat(),
+                "session_type": attempt.session.session_type,
+                "location": attempt.session.location,
+                "grade": attempt.grade,
+                "grade_system": attempt.grade_system,
+                "result": attempt.result,
+                "tries_count": max(1, attempt.attempts),
+                "notes": attempt.notes,
+                "style": attempt.style,
+            }
+            for attempt in attempts
+        ]
