@@ -429,3 +429,22 @@ class ClimbingProjectAttemptLinkTests(APITestCase):
         project.refresh_from_db()
         self.assertEqual(project.status, ClimbingProject.Status.ACTIVE)
         self.assertIsNone(project.sent_at)
+
+    def test_session_serializer_exposes_logged_climbs_and_total_tries(self):
+        session = ClimbingSession.objects.create(user=self.user, date=self.today, session_type="bouldering")
+        ClimbAttempt.objects.create(
+            session=session,
+            grade="V4",
+            grade_system="v_scale",
+            result="project",
+            attempts=5,
+        )
+
+        response = self.client.get(self.session_url)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload["attempt_count"], 1)
+        self.assertEqual(payload["logged_climb_count"], 1)
+        self.assertEqual(payload["total_try_count"], 5)
+        self.assertIn("5 tries", payload["summary"][0])

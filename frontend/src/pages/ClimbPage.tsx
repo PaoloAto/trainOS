@@ -585,11 +585,12 @@ function RecentSessions({ sessions, totalCount }: { sessions: ClimbingSession[];
             <div className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-indigo"><Mountain className="h-5 w-5" /></div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Metric label="Attempts" value={String(session.attempt_count)} />
+            <Metric label="Tries" value={String(session.total_try_count)} />
+            <Metric label="Logged climbs" value={String(session.logged_climb_count)} />
             <Metric label="Duration" value={session.duration_minutes ? String(session.duration_minutes) : "--"} unit={session.duration_minutes ? "min" : undefined} />
           </div>
           <div className="mt-4 rounded-2xl border border-border bg-bg-elevated p-3 text-sm text-text-secondary">
-            {session.summary.length > 0 ? session.summary.join(" / ") : `${session.attempt_count} attempts logged`}
+            {session.summary.length > 0 ? session.summary.join(" / ") : `${session.total_try_count} tries logged`}
           </div>
         </Card>
       ))}

@@ -90,6 +90,8 @@ class ClimbAttemptSerializer(serializers.ModelSerializer):
 class ClimbingSessionSerializer(serializers.ModelSerializer):
     attempts = ClimbAttemptSerializer(many=True, required=False)
     attempt_count = serializers.SerializerMethodField()
+    logged_climb_count = serializers.SerializerMethodField()
+    total_try_count = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
 
     class Meta:
@@ -103,11 +105,13 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
             "notes",
             "attempts",
             "attempt_count",
+            "logged_climb_count",
+            "total_try_count",
             "summary",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "attempt_count", "summary", "created_at", "updated_at"]
+        read_only_fields = ["id", "attempt_count", "logged_climb_count", "total_try_count", "summary", "created_at", "updated_at"]
 
     def validate(self, attrs):
         session_type = attrs.get("session_type", getattr(self.instance, "session_type", ""))
@@ -125,8 +129,14 @@ class ClimbingSessionSerializer(serializers.ModelSerializer):
     def get_attempt_count(self, obj):
         return obj.attempts.count()
 
+    def get_logged_climb_count(self, obj):
+        return obj.attempts.count()
+
+    def get_total_try_count(self, obj):
+        return sum(max(1, attempt.attempts) for attempt in obj.attempts.all())
+
     def get_summary(self, obj):
-        return [f"{attempt.grade} {attempt.result}" for attempt in obj.attempts.all()[:3]]
+        return [f"{max(1, attempt.attempts)} tr{'y' if max(1, attempt.attempts) == 1 else 'ies'} - {attempt.grade} {attempt.result}" for attempt in obj.attempts.all()[:3]]
 
     def create(self, validated_data):
         attempts_data = validated_data.pop("attempts", [])

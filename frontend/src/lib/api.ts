@@ -522,6 +522,8 @@ export type ClimbingSession = {
   notes: string;
   attempts: ClimbAttempt[];
   attempt_count: number;
+  logged_climb_count: number;
+  total_try_count: number;
   summary: string[];
   created_at: string;
   updated_at: string;
