@@ -67,10 +67,10 @@ export function HomePage({ user }: HomePageProps) {
               <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">
                 Weekly Training Snapshot
               </p>
-              <h2 className="mt-1 text-lg font-semibold text-text-primary">Lightweight counts for now</h2>
+              <h2 className="mt-1 text-lg font-semibold text-text-primary">MVP training pulse</h2>
             </div>
             <span className="rounded-full border border-green bg-green-muted px-3 py-1 text-xs font-semibold text-green">
-              Phase 2
+              MVP
             </span>
           </div>
           <div className="h-36 rounded-2xl border border-border bg-bg-elevated p-3">
@@ -108,28 +108,28 @@ export function HomePage({ user }: HomePageProps) {
             <QuickActionButton
               icon={ClipboardCheck}
               label="Check-in"
-              hint="mood - sleep - energy"
+              hint="mood / sleep / energy"
               accent="green"
               onClick={() => openQuickLog("check-in")}
             />
             <QuickActionButton
               icon={Timer}
               label="Run"
-              hint="distance - pace - effort"
+              hint="distance / pace / effort"
               accent="green"
               onClick={() => openQuickLog("run")}
             />
             <QuickActionButton
               icon={Dumbbell}
               label="Gym"
-              hint="split - sets - weight"
+              hint="split / sets / weight"
               accent="amber"
               onClick={() => openQuickLog("gym")}
             />
             <QuickActionButton
               icon={Mountain}
               label="Climb"
-              hint="grade - result - style"
+              hint="grade / result / style"
               accent="indigo"
               onClick={() => openQuickLog("climb")}
             />
@@ -145,7 +145,7 @@ export function HomePage({ user }: HomePageProps) {
               <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">AI Daily Brief</p>
               <h2 className="mt-1 text-lg font-semibold text-text-primary">Reserved for Phase 7</h2>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
-                No AI calls are implemented in Phase 2. This card only preserves the dashboard slot.
+                No AI calls are implemented yet. This card only preserves the future daily brief slot.
               </p>
             </div>
           </div>

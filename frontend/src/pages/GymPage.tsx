@@ -16,6 +16,7 @@ import { QuickLogSheet } from "@/components/app/QuickLogSheet";
 import { Card } from "@/components/common/Card";
 import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorStateCard, LoadingStateCard, LowDataCard } from "@/components/common/StateCards";
 import { ExerciseReferenceViewer } from "@/components/gym/ExerciseReferenceViewer";
 import { WorkoutTemplatesSection } from "@/components/gym/WorkoutTemplatesSection";
 import { Button } from "@/components/ui/button";
@@ -151,10 +152,11 @@ export function GymPage() {
         eyebrow="Gym"
         title="Strength"
         description="Create movements, save form videos, build routines, and log workouts."
+        accent="amber"
       />
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
-        {loading ? <StateCard message="Loading gym dashboard..." /> : null}
-        {error ? <StateCard message={error} tone="error" /> : null}
+        {loading ? <LoadingStateCard message="Loading gym dashboard..." accent="amber" /> : null}
+        {error ? <ErrorStateCard title="Gym unavailable" message={error} /> : null}
         {!loading && !error && analytics ? (
           <>
             <GymFlowGuide compact={activeExercises.length > 0 && templates.length > 0 && savedVideoCount > 0} />
@@ -278,7 +280,7 @@ function GymModeTabs({ activeView, onChange }: { activeView: GymView; onChange: 
   ];
 
   return (
-    <div className="grid gap-2 rounded-3xl border border-border bg-bg-card p-2 md:grid-cols-2">
+    <div className="grid gap-2 rounded-3xl border border-border bg-bg-card p-2 min-[420px]:grid-cols-2">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -341,12 +343,12 @@ function ExercisesIntro({
             <h2 className="mt-1 text-xl font-semibold text-text-primary">Create movements, save form videos, and use them in routines.</h2>
             <p className="mt-2 text-sm leading-6 text-text-secondary">An exercise is the movement. A form video/cue is a saved link for that movement.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={onCreateExercise}>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button type="button" className="w-full rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20 sm:w-auto" onClick={onCreateExercise}>
               <Plus className="h-4 w-4" />
               New Movement
             </Button>
-            <Button type="button" variant="secondary" className="rounded-2xl" onClick={onQuickLog}>
+            <Button type="button" variant="secondary" className="w-full rounded-2xl sm:w-auto" onClick={onQuickLog}>
               Quick Log
             </Button>
           </div>
@@ -1165,7 +1167,7 @@ function RecentSessions({ sessions, onEditSession }: { sessions: GymSession[]; o
   return (
     <div className="space-y-3">
       <SectionHeader label="Recent completed workouts" description="Finished quick logs and guided routines stay here for review." />
-      {sessions.length === 0 ? <StateCard message="No completed workouts yet. Quick log or finish a routine to create one." /> : null}
+      {sessions.length === 0 ? <LowDataCard accent="amber" title="No completed workouts yet" message="Quick log or finish a routine to create one." /> : null}
       {sessions.map((session, index) => (
         <Card key={session.id} delay={index * 0.04}>
           <div className="flex items-start justify-between gap-4">
@@ -1454,10 +1456,6 @@ function Field({ label, children, className }: { label: string; children: ReactN
       {children}
     </label>
   );
-}
-
-function StateCard({ message, tone = "default" }: { message: string; tone?: "default" | "error" }) {
-  return <Card className={tone === "error" ? "border-red bg-red-muted text-red" : "text-text-secondary"}>{message}</Card>;
 }
 
 function YoutubePreviewSheet({ reference, open, onOpenChange }: { reference: ExerciseReference | null; open: boolean; onOpenChange: (open: boolean) => void }) {

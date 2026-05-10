@@ -32,7 +32,6 @@ type QuickLogSheetProps = {
 };
 
 const inputClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-green focus:ring-2 focus:ring-green/20 disabled:cursor-not-allowed disabled:opacity-50";
-const textareaClass = `${inputClass} h-24 min-h-24 w-full resize-none leading-6`;
 const selectClass = `${inputClass} w-full`;
 
 const runTypeOptions = ["easy", "long_run", "tempo", "interval", "recovery", "race", "hill", "progression", "other"];
@@ -66,7 +65,7 @@ function toRequiredNumber(value: string, fallback = 0): number {
 
 function optionLabel(value: string) {
   if (!value) return "None";
-  return value.replace("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+  return value.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
 function climbResultOptionsFor(sessionType: string) {
@@ -113,7 +112,7 @@ function ErrorState({ error }: { error: string | null }) {
 
 function SubmitFooter({ label, saving, disabled }: { label: string; saving: boolean; disabled?: boolean }) {
   return (
-    <div className="sticky bottom-0 -mx-1 bg-bg-card/95 pt-2 backdrop-blur-sm md:static md:bg-transparent md:pt-1">
+    <div className="sticky bottom-0 -mx-1 bg-bg-card/95 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-sm md:static md:bg-transparent md:pb-0 md:pt-1">
       <Button type="submit" className="h-12 w-full rounded-2xl" disabled={saving || disabled}>
         {saving ? "Saving..." : label}
       </Button>
@@ -158,7 +157,7 @@ export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initia
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="overflow-y-auto md:max-h-[86vh]">
+      <SheetContent className="overflow-y-auto overscroll-contain pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:max-h-[86vh] md:pb-6">
         <SheetHeader className="border-b border-border pb-4">
           <FormEyebrow>{activeMode === "menu" ? "Fast Capture" : "Under 60 seconds"}</FormEyebrow>
           <SheetTitle>{title}</SheetTitle>
@@ -170,7 +169,7 @@ export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initia
         <SuccessBanner message={successMessage} />
 
         {activeMode !== "menu" ? (
-          <Button type="button" variant="ghost" size="sm" className="w-fit" onClick={() => setMode("menu")}>
+          <Button type="button" variant="ghost" size="sm" className="-mt-1 w-fit rounded-2xl text-text-secondary" onClick={() => setMode("menu")}>
             Back to quick log
           </Button>
         ) : null}
@@ -196,10 +195,10 @@ export function QuickLogSheet({ open, onOpenChange, initialMode = "menu", initia
 function QuickLogMenu({ onSelect }: { onSelect: (mode: QuickLogMode) => void }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:gap-4">
-      <QuickActionButton icon={ClipboardCheck} label="Check-in" hint="mood - sleep - energy" accent="green" onClick={() => onSelect("check-in")} />
-      <QuickActionButton icon={Timer} label="Run" hint="distance - pace - effort" accent="green" onClick={() => onSelect("run")} />
-      <QuickActionButton icon={Dumbbell} label="Gym" hint="split - sets - weight" accent="amber" onClick={() => onSelect("gym")} />
-      <QuickActionButton icon={Mountain} label="Climb" hint="grade - result - style" accent="indigo" onClick={() => onSelect("climb")} />
+      <QuickActionButton icon={ClipboardCheck} label="Check-in" hint="mood / sleep / energy" accent="green" onClick={() => onSelect("check-in")} />
+      <QuickActionButton icon={Timer} label="Run" hint="distance / pace / effort" accent="green" onClick={() => onSelect("run")} />
+      <QuickActionButton icon={Dumbbell} label="Gym" hint="split / sets / weight" accent="amber" onClick={() => onSelect("gym")} />
+      <QuickActionButton icon={Mountain} label="Climb" hint="grade / result / style" accent="indigo" onClick={() => onSelect("climb")} />
     </div>
   );
 }
@@ -246,7 +245,15 @@ function CheckInForm({ onSuccess }: { onSuccess: (message: string) => void }) {
           <Field label="Soreness"><Input inputMode="numeric" value={soreness} onChange={(event) => setSoreness(event.target.value)} placeholder="1-10" /></Field>
         </FieldGrid>
         <Field label="Stress"><Input inputMode="numeric" value={stress} onChange={(event) => setStress(event.target.value)} placeholder="1-10" /></Field>
-        <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Anything worth remembering?" /></Field>
+        <OptionalNotesField
+          label="Check-in notes"
+          value={notes}
+          onChange={setNotes}
+          collapsedLabel="+ Add check-in notes"
+          placeholder="Anything worth remembering about sleep, stress, or readiness?"
+          helperText="Optional context for today's baseline."
+          accent="green"
+        />
       </FormPanel>
       <ErrorState error={error} />
       <SubmitFooter label="Save check-in" saving={saving} />
@@ -300,7 +307,15 @@ function RunForm({ onSuccess }: { onSuccess: (message: string) => void }) {
           <Field label="RPE"><Input inputMode="numeric" value={effort} onChange={(event) => setEffort(event.target.value)} placeholder="1-10" /></Field>
         </FieldGrid>
         <Field label="Avg HR bpm"><Input inputMode="numeric" value={avgHr} onChange={(event) => setAvgHr(event.target.value)} placeholder="145" /></Field>
-        <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Route, weather, legs, or workout intent." /></Field>
+        <OptionalNotesField
+          label="Run notes"
+          value={notes}
+          onChange={setNotes}
+          collapsedLabel="+ Add run notes"
+          placeholder="Route, weather, legs, or workout intent."
+          helperText="Optional context for this run."
+          accent="green"
+        />
       </FormPanel>
       <ErrorState error={error} />
       <SubmitFooter label="Save run" saving={saving} disabled={!distanceKm || !durationMinutes} />
@@ -497,7 +512,7 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
         <Field label="Pattern"><select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>{movementOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
       </FieldGrid>
       <div className="space-y-3 rounded-2xl border border-border bg-bg-base/40 p-3">
-        <FormEyebrow>Optional Reference</FormEyebrow>
+        <FormEyebrow>Optional Form Video/Cue</FormEyebrow>
         <Field label="Video or cue URL"><Input value={referenceUrl} onChange={(event) => handleReferenceUrlChange(event.target.value)} placeholder="YouTube, Reel, TikTok, or website" /></Field>
         {referenceUrl ? (
           <>
@@ -627,8 +642,8 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
       if (selectedProject) {
         onSuccess(
           shouldOfferMarkSent && markProjectSent
-            ? `Attempt linked to ${selectedProject.name}. Project marked sent.`
-            : `Attempt linked to ${selectedProject.name}.`,
+            ? `Climbing log linked to ${selectedProject.name}. Project marked sent.`
+            : `Climbing log linked to ${selectedProject.name}.`,
         );
       } else {
         onSuccess("Climbing session saved.");
@@ -661,14 +676,14 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
           <Field label="Grade system"><select className={selectClass} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
           <Field label="Grade"><Input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder={sessionType === "top_rope" ? "5.10a" : "V4"} required /></Field>
           <Field label="Result"><select className={selectClass} value={result} onChange={(event) => setResult(event.target.value)}>{resultOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Attempts"><Input inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
+          <Field label="Tries"><Input inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
           <Field label="Style"><select className={selectClass} value={style} onChange={(event) => setStyle(event.target.value)}>{styleOptions.map((option) => <option key={option || "none"} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
         {selectedProject ? (
           <div className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">
             <p className="font-semibold text-text-primary">Linked project</p>
             <p className="mt-1">{selectedProject.name} - {selectedProject.grade} - {optionLabel(selectedProject.session_type || sessionType)}</p>
-            <p className="mt-1">This attempt will count toward project progress.</p>
+            <p className="mt-1">This log will count toward project progress.</p>
             {selectedProject.status !== "active" ? <p className="mt-2 text-text-secondary">This project is not active. You can still log history, but active projects are recommended.</p> : null}
             {shouldOfferMarkSent ? (
               <label className="mt-3 flex items-start gap-3 rounded-xl border border-indigo/50 bg-bg-card/60 p-3 text-text-secondary">
@@ -686,9 +701,17 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
             ) : null}
           </div>
         ) : (
-          <p className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">Link this attempt to a project when you want it counted in project history.</p>
+          <p className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">Link this climb to a project when you want it counted in project history.</p>
         )}
-        <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Beta, movement style, or what to try next." /></Field>
+        <OptionalNotesField
+          label="Climbing notes"
+          value={notes}
+          onChange={setNotes}
+          collapsedLabel="+ Add climbing notes"
+          placeholder="Beta, movement style, or what to try next."
+          helperText="Optional context for this climb."
+          accent="indigo"
+        />
       </FormPanel>
       <ErrorState error={error} />
       <SubmitFooter label="Save climb" saving={saving} disabled={!grade} />
@@ -758,7 +781,15 @@ function ProjectForm({ onSuccess }: { onSuccess: (message: string) => void }) {
           <Field label="Status"><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}>{projectStatusOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
         <Field label="Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Gym wall, crag, or route area" /></Field>
-        <Field label="Notes"><textarea className={textareaClass} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Current beta, crux, or what to try next." /></Field>
+        <OptionalNotesField
+          label="Project notes"
+          value={notes}
+          onChange={setNotes}
+          collapsedLabel="+ Add project notes"
+          placeholder="Current beta, crux, or what to try next."
+          helperText="Optional beta and reminders for this project."
+          accent="indigo"
+        />
       </FormPanel>
       <ErrorState error={error} />
       <SubmitFooter label="Create project" saving={saving} disabled={!name || !grade} />

@@ -34,6 +34,7 @@ import {
 
 import { Card } from "@/components/common/Card";
 import { PageHeader } from "@/components/common/PageHeader";
+import { EmptyActionCard, ErrorStateCard, LoadingStateCard } from "@/components/common/StateCards";
 import { Button } from "@/components/ui/button";
 import {
   api,
@@ -85,6 +86,10 @@ export function RunPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  function scrollToImportCard() {
+    document.getElementById("running-import-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -123,6 +128,7 @@ export function RunPage() {
         eyebrow="Running"
         title="Run Log"
         description="Manual logging stays live. TCX imports now feed a marathon-training baseline."
+        accent="green"
       />
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
         <RunningDashboard analytics={analytics} loading={loading} error={error} />
@@ -130,10 +136,17 @@ export function RunPage() {
         <ImportHistory imports={imports} />
 
         <SectionHeader label="Recent runs" description="Manual and imported runs share one timeline." />
-        {loading ? <StateCard message="Loading runs..." /> : null}
-        {error ? <StateCard message={error} tone="error" /> : null}
+        {loading ? <LoadingStateCard message="Loading runs..." accent="green" /> : null}
+        {error ? <ErrorStateCard title="Run log unavailable" message={error} /> : null}
         {!loading && !error && runs.length === 0 ? (
-          <StateCard message="No runs logged yet. Use Quick Log from Home or import a TCX file." />
+          <EmptyActionCard
+            icon={FileUp}
+            accent="green"
+            title="No runs logged yet"
+            message="Import a TCX file or log a manual run to build your running baseline."
+            actionLabel="Import run"
+            onAction={scrollToImportCard}
+          />
         ) : null}
         {runs.map((run, index) => (
           <RunCard key={run.id} run={run} delay={index * 0.04} />
@@ -145,11 +158,11 @@ export function RunPage() {
 
 function RunningDashboard({ analytics, loading, error }: { analytics: RunningAnalytics | null; loading: boolean; error: string | null }) {
   if (loading) {
-    return <StateCard message="Loading running dashboard..." />;
+    return <LoadingStateCard message="Loading running dashboard..." accent="green" />;
   }
 
   if (error) {
-    return <StateCard message="Running dashboard unavailable right now." tone="error" />;
+    return <ErrorStateCard title="Running dashboard unavailable" message="Run history still stays saved. Try refreshing the page." />;
   }
 
   if (!analytics || analytics.summary.total_runs === 0) {
@@ -316,7 +329,7 @@ function TrainingRhythmCard({ analytics }: { analytics: RunningAnalytics }) {
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Training rhythm</p>
           <h2 className="mt-1 text-lg font-semibold text-text-primary">{consistency.consistency_label}</h2>
           <p className="mt-2 text-sm leading-6 text-text-secondary">{consistency.consistency_note}</p>
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
             <MiniMetric label="7 days" value={String(consistency.runs_last_7_days)} />
             <MiniMetric label="30 days" value={String(consistency.runs_last_30_days)} />
             <MiniMetric label="Active weeks" value={`${consistency.active_weeks_last_8}/8`} />
@@ -593,7 +606,7 @@ function ImportRunCard({ onImported }: { onImported: () => void }) {
       : "border-border bg-bg-elevated hover:border-green hover:bg-green-muted";
 
   return (
-    <Card className="overflow-hidden p-0" delay={0.02}>
+    <Card id="running-import-card" className="scroll-mt-6 overflow-hidden p-0" delay={0.02}>
       <div className="border-b border-border bg-bg-elevated/60 px-5 py-4 md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -764,7 +777,7 @@ function ImportHistory({ imports }: { imports: RunningImportBatch[] }) {
         <div className="min-w-0 flex-1">
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Import history</p>
           {recent.length === 0 ? (
-            <p className="mt-2 text-sm leading-6 text-text-secondary">No imports yet. Upload one TCX file above to create the first batch.</p>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">No imports yet. Upload one TCX file above to create the first import.</p>
           ) : (
             <div className="mt-3 space-y-2">
               {recent.map((item) => (
@@ -884,10 +897,6 @@ function MiniMetric({ label, value, unit }: { label: string; value: string; unit
       <p className="metric-number mt-1 text-xs font-bold text-text-primary">{value}{unit ? <span className="ml-1 font-sans text-[0.65rem] font-normal text-text-secondary">{unit}</span> : null}</p>
     </div>
   );
-}
-
-function StateCard({ message, tone = "default" }: { message: string; tone?: "default" | "error" }) {
-  return <Card className={tone === "error" ? "border-red bg-red-muted text-red" : "text-text-secondary"}>{message}</Card>;
 }
 
 function isTcxFile(file: File) {

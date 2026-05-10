@@ -6,10 +6,17 @@ type PageHeaderProps = {
   eyebrow?: string;
   title: string;
   description?: string;
+  accent?: "green" | "amber" | "indigo";
   className?: string;
 };
 
-export function PageHeader({ eyebrow, title, description, className }: PageHeaderProps) {
+const accentClasses = {
+  green: "border-green bg-green-muted text-green shadow-glow",
+  amber: "border-amber bg-amber-muted text-amber shadow-amber",
+  indigo: "border-indigo bg-indigo-muted text-indigo shadow-indigo",
+};
+
+export function PageHeader({ eyebrow, title, description, accent = "green", className }: PageHeaderProps) {
   return (
     <header className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between gap-4">
@@ -21,7 +28,7 @@ export function PageHeader({ eyebrow, title, description, className }: PageHeade
             {title}
           </h1>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-green bg-green-muted text-sm font-bold text-green shadow-glow">
+        <div className={cn("flex h-11 w-11 items-center justify-center rounded-full border text-sm font-bold", accentClasses[accent])}>
           T
         </div>
       </div>

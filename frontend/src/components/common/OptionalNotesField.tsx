@@ -12,10 +12,25 @@ type OptionalNotesFieldProps = {
   helperText?: string;
   collapsedLabel?: string;
   defaultOpen?: boolean;
+  accent?: "green" | "amber" | "indigo";
   className?: string;
 };
 
-const textareaClass = "min-h-24 w-full resize-none rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm leading-6 text-text-primary outline-none transition placeholder:text-text-muted focus:border-amber focus:ring-2 focus:ring-amber/20";
+const textareaClass = "min-h-24 w-full resize-none rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm leading-6 text-text-primary outline-none transition placeholder:text-text-muted";
+const accentClasses = {
+  green: {
+    collapsed: "hover:border-green hover:text-green",
+    focus: "focus:border-green focus:ring-2 focus:ring-green/20",
+  },
+  amber: {
+    collapsed: "hover:border-amber hover:text-amber",
+    focus: "focus:border-amber focus:ring-2 focus:ring-amber/20",
+  },
+  indigo: {
+    collapsed: "hover:border-indigo hover:text-indigo",
+    focus: "focus:border-indigo focus:ring-2 focus:ring-indigo/20",
+  },
+};
 
 export function OptionalNotesField({
   label,
@@ -25,6 +40,7 @@ export function OptionalNotesField({
   helperText,
   collapsedLabel = "+ Add optional notes",
   defaultOpen,
+  accent = "amber",
   className,
 }: OptionalNotesFieldProps) {
   const [open, setOpen] = useState(defaultOpen ?? value.trim().length > 0);
@@ -42,7 +58,8 @@ export function OptionalNotesField({
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-bg-elevated px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-amber hover:text-amber",
+          "flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-bg-elevated px-4 py-3 text-left text-sm font-semibold text-text-secondary transition",
+          accentClasses[accent].collapsed,
           className,
         )}
         onClick={() => setOpen(true)}
@@ -65,7 +82,7 @@ export function OptionalNotesField({
         </Button>
       </div>
       <textarea
-        className={textareaClass}
+        className={cn(textareaClass, accentClasses[accent].focus)}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

@@ -5,6 +5,7 @@ import { QuickLogSheet, type QuickLogMode } from "@/components/app/QuickLogSheet
 import { Card } from "@/components/common/Card";
 import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorStateCard, LoadingStateCard, LowDataCard } from "@/components/common/StateCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -129,12 +130,13 @@ export function ClimbPage() {
       <PageHeader
         eyebrow="Climbing"
         title="Climbing"
-        description="Track bouldering sessions, top-rope routes, attempts, sends, clean climbs, and active projects."
+        description="Track bouldering sessions, top-rope routes, tries, sends, clean climbs, and active projects."
+        accent="indigo"
       />
 
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
-        {loading ? <StateCard message="Loading climbing dashboard..." /> : null}
-        {error ? <StateCard message={error} tone="error" /> : null}
+        {loading ? <LoadingStateCard message="Loading climbing dashboard..." accent="indigo" /> : null}
+        {error ? <ErrorStateCard title="Climbing unavailable" message={error} /> : null}
         {!loading && !error && analytics ? (
           <>
             <ClimbTabs activeView={activeView} onChange={setActiveView} />
@@ -220,7 +222,7 @@ function ClimbTabs({ activeView, onChange }: { activeView: ClimbView; onChange: 
     { id: "projects", title: "Projects", description: "Active, sent, paused" },
   ];
   return (
-    <div className="grid gap-2 rounded-3xl border border-border bg-bg-card p-2 md:grid-cols-2">
+    <div className="grid gap-2 rounded-3xl border border-border bg-bg-card p-2 min-[420px]:grid-cols-2">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -262,9 +264,9 @@ function SessionsView({
             <div>
               <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Sessions</p>
               <h2 className="mt-1 text-xl font-semibold text-text-primary">Bouldering and top-rope baseline</h2>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">Log attempts, sends, clean routes, and styles without mixing the two disciplines.</p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">Log tries, sends, clean routes, and styles without mixing the two disciplines.</p>
             </div>
-            <Button type="button" className="rounded-2xl border-indigo bg-indigo-muted text-indigo hover:bg-indigo/20" onClick={onLogSession}>
+            <Button type="button" className="w-full rounded-2xl border-indigo bg-indigo-muted text-indigo hover:bg-indigo/20 sm:w-auto" onClick={onLogSession}>
               <Plus className="h-4 w-4" />
               Log climbing session
             </Button>
@@ -340,7 +342,7 @@ function ProjectsView({
               <h2 className="mt-1 text-xl font-semibold text-text-primary">Track climbs you are working</h2>
               <p className="mt-2 text-sm leading-6 text-text-secondary">Create bouldering or top-rope projects, then move them through active, sent, paused, or abandoned.</p>
             </div>
-            <Button type="button" className="rounded-2xl border-indigo bg-indigo-muted text-indigo hover:bg-indigo/20" onClick={onCreateProject}>
+            <Button type="button" className="w-full rounded-2xl border-indigo bg-indigo-muted text-indigo hover:bg-indigo/20 sm:w-auto" onClick={onCreateProject}>
               <FolderPlus className="h-4 w-4" />
               Create project
             </Button>
@@ -355,7 +357,7 @@ function ProjectsView({
       </Card>
 
       {allProjects.length === 0 ? (
-        <EmptyActionCard icon={FolderPlus} title="No projects yet." message="Create a bouldering or top-rope project to track attempts." actionLabel="Create project" onAction={onCreateProject} />
+        <EmptyActionCard icon={FolderPlus} title="No projects yet." message="Create a bouldering or top-rope project to track tries." actionLabel="Create project" onAction={onCreateProject} />
       ) : activeProjects.length === 0 ? (
         <EmptyActionCard icon={Target} title="No active projects." message="Create a project or mark a sent route from your log." actionLabel="Create project" onAction={onCreateProject} />
       ) : null}
@@ -364,7 +366,7 @@ function ProjectsView({
       <ProjectProgressOverview analytics={analytics} />
       <ProjectFilterBar value={filter} onChange={onFilterChange} />
       {projects.length === 0 ? (
-        <StateCard message={projectFilterEmptyMessage(filter)} />
+        <LowDataCard accent="indigo" title="No projects found" message={projectFilterEmptyMessage(filter)} />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
           {projects.map((project, index) => (
@@ -437,9 +439,9 @@ function BoulderingProgressionCard({ analytics }: { analytics: ClimbingAnalytics
       <div className="mt-5 rounded-3xl border border-indigo bg-indigo-muted p-5 text-center">
         <p className="text-xs uppercase tracking-[0.18em] text-indigo">Highest sent</p>
         <p className="metric-number mt-2 text-5xl font-bold text-text-primary">{analytics.bouldering_progression.highest_sent_grade ?? "--"}</p>
-        {!hasData ? <p className="mt-3 text-sm leading-6 text-text-secondary">No bouldering data yet. Log V-scale attempts to build your grade baseline.</p> : null}
+        {!hasData ? <p className="mt-3 text-sm leading-6 text-text-secondary">No bouldering data yet. Log V-scale tries to build your grade baseline.</p> : null}
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
         <Metric label="Highest tried" value={analytics.bouldering_progression.highest_attempted_grade ?? "--"} />
         <Metric label="Recent sent" value={analytics.bouldering_progression.recent_highest_sent_grade ?? "--"} />
         <Metric label={`Best rate${bestRate.grade ? ` at ${bestRate.grade}` : ""}`} value={bestRate.value} />
@@ -460,7 +462,7 @@ function TopRopeProgressionCard({ analytics }: { analytics: ClimbingAnalytics })
         <p className="metric-number mt-2 text-5xl font-bold text-text-primary">{analytics.top_rope_progression.highest_clean_grade ?? "--"}</p>
         {!hasData ? <p className="mt-3 text-sm leading-6 text-text-secondary">No top-rope data yet. Log YDS routes to build your clean-route baseline.</p> : null}
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
         <Metric label="Highest tried" value={analytics.top_rope_progression.highest_attempted_grade ?? "--"} />
         <Metric label="Recent clean" value={analytics.top_rope_progression.recent_highest_clean_grade ?? "--"} />
         <Metric label={`Best rate${bestRate.grade ? ` at ${bestRate.grade}` : ""}`} value={bestRate.value} />
@@ -488,9 +490,9 @@ function WeeklyClimbingTrend({ analytics }: { analytics: ClimbingAnalytics }) {
           </div>
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
         <Metric label="This week" value={String(analytics.weekly_climbing_trend.at(-1)?.session_count ?? 0)} unit="sessions" />
-        <Metric label="Attempts" value={String(analytics.weekly_climbing_trend.at(-1)?.attempt_count ?? 0)} />
+        <Metric label="Tries" value={String(analytics.weekly_climbing_trend.at(-1)?.attempt_count ?? 0)} />
         <Metric label="Sent/clean" value={String(analytics.weekly_climbing_trend.at(-1)?.send_or_clean_count ?? 0)} />
       </div>
     </Card>
@@ -511,7 +513,7 @@ function GradeDistributionCard({ title, items, successLabel }: { title: string; 
             max={maxAttempts}
             detail={`${rateDisplay(item)} ${successLabel} / ${item.success_count} success`}
           />
-        )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No grade data yet. Log attempts to build this distribution.</p>}
+        )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No grade data yet. Log tries to build this distribution.</p>}
       </div>
     </Card>
   );
@@ -527,7 +529,7 @@ function StyleStrengths({ analytics }: { analytics: ClimbingAnalytics }) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-text-primary">{labelize(item.style)}</p>
-                <p className="mt-1 text-xs text-text-muted">{item.success_count} success / {item.attempt_count} attempts</p>
+                <p className="mt-1 text-xs text-text-muted">{item.success_count} success / {item.attempt_count} tries</p>
               </div>
               <span className="rounded-full border border-indigo bg-indigo-muted px-3 py-1 text-xs font-semibold text-indigo">{item.insight_label}</span>
             </div>
@@ -546,7 +548,7 @@ function SessionTypeBalance({ analytics }: { analytics: ClimbingAnalytics }) {
     <Card>
       <SectionTitle icon={Filter} eyebrow="Session balance" title="Bouldering / top rope / other" />
       <div className="mt-4 space-y-2">
-        {visible.map((item) => <DistributionRow key={item.session_type} label={labelize(item.session_type)} count={item.session_count} max={maxCount} detail={`${item.attempt_count} attempts`} />)}
+        {visible.map((item) => <DistributionRow key={item.session_type} label={labelize(item.session_type)} count={item.session_count} max={maxCount} detail={`${item.attempt_count} tries`} />)}
       </div>
     </Card>
   );
@@ -584,7 +586,7 @@ function RecentSessions({ sessions, totalCount }: { sessions: ClimbingSession[];
             </div>
             <div className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-indigo"><Mountain className="h-5 w-5" /></div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
             <Metric label="Tries" value={String(session.total_try_count)} />
             <Metric label="Logged climbs" value={String(session.logged_climb_count)} />
             <Metric label="Duration" value={session.duration_minutes ? String(session.duration_minutes) : "--"} unit={session.duration_minutes ? "min" : undefined} />
@@ -624,7 +626,7 @@ function ProjectHighlights({ analytics }: { analytics: ClimbingAnalytics }) {
 function ProjectProgressOverview({ analytics }: { analytics: ClimbingAnalytics }) {
   return (
     <Card>
-      <SectionTitle icon={Target} eyebrow="Project progress" title="Active linked attempts" />
+      <SectionTitle icon={Target} eyebrow="Project progress" title="Active linked tries" />
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
         {analytics.project_progress.length ? analytics.project_progress.slice(0, 4).map((project) => (
           <div key={project.id} className="rounded-2xl border border-border bg-bg-elevated p-3">
@@ -637,7 +639,7 @@ function ProjectProgressOverview({ analytics }: { analytics: ClimbingAnalytics }
             </div>
             <p className="mt-3 text-sm leading-6 text-text-secondary">{project.total_attempts} tr{project.total_attempts === 1 ? "y" : "ies"} / {project.progress_label}</p>
           </div>
-        )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No active project attempts yet. Link attempts from quick log to make project progress visible.</p>}
+        )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No active project tries yet. Link climbs from quick log to make project progress visible.</p>}
       </div>
     </Card>
   );
@@ -646,7 +648,7 @@ function ProjectProgressOverview({ analytics }: { analytics: ClimbingAnalytics }
 function ProjectFilterBar({ value, onChange }: { value: ProjectFilter; onChange: (filter: ProjectFilter) => void }) {
   const options: ProjectFilter[] = ["active", "stale", "sent", "paused", "abandoned", "all"];
   return (
-    <div className="flex gap-2 overflow-x-auto rounded-3xl border border-border bg-bg-card p-2">
+    <div className="flex gap-2 overflow-x-auto rounded-3xl border border-border bg-bg-card p-2 pb-3">
       {options.map((option) => (
         <button
           key={option}
@@ -669,7 +671,7 @@ function SessionFilterBar({ value, onChange }: { value: SessionFilter; onChange:
     { value: "training_other", label: "Training / Other" },
   ];
   return (
-    <div className="flex gap-2 overflow-x-auto rounded-3xl border border-border bg-bg-card p-2">
+    <div className="flex gap-2 overflow-x-auto rounded-3xl border border-border bg-bg-card p-2 pb-3">
       {options.map((option) => (
         <button
           key={option.value}
@@ -812,7 +814,7 @@ function ProjectDetailSheet({
           </div>
 
           <div className="space-y-3">
-            <SectionHeader label="Project timeline" description="Linked attempts ordered oldest to newest so the progress story is visible." />
+            <SectionHeader label="Project timeline" description="Linked tries ordered oldest to newest so the progress story is visible." />
             {linkedAttempts.length ? linkedAttempts.map((attempt) => (
               <div key={attempt.id} className="rounded-2xl border border-border bg-bg-elevated p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -825,7 +827,7 @@ function ProjectDetailSheet({
                 {attempt.notes ? <p className="mt-3 text-sm leading-6 text-text-secondary">{attempt.notes}</p> : null}
               </div>
             )) : (
-              <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No linked attempts yet. Log an attempt from this project to build the timeline.</p>
+              <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No linked tries yet. Log from this project to build the timeline.</p>
             )}
           </div>
         </div>
@@ -911,7 +913,7 @@ function ProjectEditForm({ project, onSaved, onCancel }: { project: ClimbingProj
           <Field label="Started"><Input type="date" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} className="focus:border-indigo focus:ring-indigo/20" /></Field>
           <Field label="Sent"><Input type="date" value={sentAt} onChange={(event) => setSentAt(event.target.value)} className="focus:border-indigo focus:ring-indigo/20" /></Field>
         </div>
-        <OptionalNotesField label="Project notes" value={notes} onChange={setNotes} collapsedLabel="+ Add project notes" placeholder="Beta, crux, attempts, or next focus." helperText="These notes stay with this project." className="mt-3" />
+        <OptionalNotesField label="Project notes" value={notes} onChange={setNotes} collapsedLabel="+ Add project notes" placeholder="Beta, crux, tries, or next focus." helperText="These notes stay with this project." accent="indigo" className="mt-3" />
       </div>
       {error ? <p className="rounded-2xl border border-red bg-red-muted p-3 text-sm text-red">{error}</p> : null}
       <div className="grid grid-cols-2 gap-3">
@@ -982,10 +984,6 @@ function Metric({ label, value, unit }: { label: string; value: string; unit?: s
   );
 }
 
-function StateCard({ message, tone = "default" }: { message: string; tone?: "default" | "error" }) {
-  return <Card className={tone === "error" ? "border-red bg-red-muted text-red" : "text-text-secondary"}>{message}</Card>;
-}
-
 function barWidth(value: number, maxValue: number) {
   if (value <= 0) return 0;
   return Math.max(8, (value / Math.max(1, maxValue)) * 100);
@@ -1004,9 +1002,9 @@ function isProjectStale(project: ClimbingProject) {
 }
 
 function projectFilterEmptyMessage(filter: ProjectFilter) {
-  if (filter === "stale") return "No stale projects. Active projects have recent attempts or are still new.";
+  if (filter === "stale") return "No stale projects. Active projects have recent tries or are still new.";
   if (filter === "sent") return "No sent projects yet. Linked sends and clean routes will appear here.";
-  if (filter === "active") return "No active projects. Create a project to track attempts.";
+  if (filter === "active") return "No active projects. Create a project to track tries.";
   return "No projects match this status filter.";
 }
 

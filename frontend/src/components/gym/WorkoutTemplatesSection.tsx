@@ -118,11 +118,11 @@ export function WorkoutTemplatesSection({ templates, activeWorkout, exercises, m
             <h2 className="mt-1 text-xl font-semibold text-text-primary">Guided workout routines</h2>
             <p className="mt-2 text-sm leading-6 text-text-secondary">Build reusable Push, Pull, Legs, Upper, Lower, or custom routines, then log sets step by step.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" className="rounded-2xl" onClick={onStartWithoutTemplate}>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button type="button" variant="secondary" className="w-full rounded-2xl sm:w-auto" onClick={onStartWithoutTemplate}>
               Quick Log
             </Button>
-            <Button type="button" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={() => setEditorState("new")}>
+            <Button type="button" className="w-full rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20 sm:w-auto" onClick={() => setEditorState("new")}>
               <Plus className="h-4 w-4" />
               Create routine
             </Button>
@@ -154,11 +154,11 @@ export function WorkoutTemplatesSection({ templates, activeWorkout, exercises, m
                   </div>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" className="rounded-2xl border-amber bg-bg-card text-amber hover:bg-amber/20" onClick={() => setSheetWorkout(activeWorkout)} disabled={cancellingActiveWorkout}>
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                <Button type="button" variant="secondary" className="w-full rounded-2xl border-amber bg-bg-card text-amber hover:bg-amber/20 sm:w-auto" onClick={() => setSheetWorkout(activeWorkout)} disabled={cancellingActiveWorkout}>
                   Resume workout
                 </Button>
-                <Button type="button" variant="danger" className="rounded-2xl" onClick={() => void handleCancelActiveWorkout()} disabled={cancellingActiveWorkout}>
+                <Button type="button" variant="danger" className="w-full rounded-2xl sm:w-auto" onClick={() => void handleCancelActiveWorkout()} disabled={cancellingActiveWorkout}>
                   <X className="h-4 w-4" />
                   {cancellingActiveWorkout ? "Cancelling..." : "Cancel workout"}
                 </Button>
@@ -411,7 +411,7 @@ function TemplateEditorSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto md:w-[min(92vw,64rem)]">
+      <SheetContent className="overflow-y-auto overscroll-contain pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:w-[min(92vw,64rem)] md:pb-6">
         <SheetHeader>
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Workout routine</p>
           <SheetTitle>{editingTemplate ? "Edit routine" : "Create routine"}</SheetTitle>
@@ -557,7 +557,7 @@ function TemplateEditorSheet({
               </div>
             </div>
           ) : null}
-          <div className="sticky bottom-0 grid grid-cols-2 gap-3 rounded-3xl border border-border bg-bg-card/95 p-2 backdrop-blur">
+          <div className="sticky bottom-0 grid grid-cols-2 gap-3 rounded-3xl border border-border bg-bg-card/95 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur md:pb-2">
             <Button type="button" variant="secondary" className="rounded-2xl" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" disabled={saving || Boolean(validationMessage)}>{saving ? "Saving..." : "Save routine"}</Button>
           </div>
@@ -825,7 +825,7 @@ function ActiveWorkoutContent({ activeWorkout, open, onOpenChange, onChanged, on
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto md:w-[min(94vw,64rem)] md:max-h-[90vh]">
+      <SheetContent className="overflow-y-auto overscroll-contain pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:w-[min(94vw,64rem)] md:max-h-[90vh] md:pb-6">
         <SheetHeader>
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Active workout</p>
           <SheetTitle>{workout.template_summary?.name ?? "Workout"}</SheetTitle>
@@ -921,7 +921,7 @@ function ActiveWorkoutContent({ activeWorkout, open, onOpenChange, onChanged, on
                   <Button type="button" variant="secondary" className="rounded-2xl" onClick={handlePreviousSet} disabled={saving || (workout.current_exercise_index === 0 && workout.current_set_index === 0)}>Previous</Button>
                   <Button type="button" variant="secondary" className="rounded-2xl" onClick={handleSkipSet} disabled={saving}>Skip set</Button>
                   <Button type="button" variant="secondary" className="rounded-2xl" onClick={handleAddExtraSet} disabled={saving}>Extra set</Button>
-                  <Button type="button" className="h-12 rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20 md:col-span-2" onClick={handleLogSet} disabled={saving || !reps}>{saving ? "Saving..." : "Log set and next"}</Button>
+                  <Button type="button" className="col-span-2 h-12 rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20 md:col-span-2" onClick={handleLogSet} disabled={saving || !reps}>{saving ? "Saving..." : "Log set and next"}</Button>
                 </div>
               </div>
 
@@ -944,7 +944,7 @@ function ActiveWorkoutContent({ activeWorkout, open, onOpenChange, onChanged, on
                     <WorkoutCue label="Sets logged" value={String(workout.logged_sets.length)} />
                     <WorkoutCue label="Volume" value={loggedVolume > 0 ? `${loggedVolume.toFixed(0)} kg` : "--"} />
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="mt-4 grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                     <Button type="button" variant="danger" className="rounded-2xl" onClick={handleCancel} disabled={saving}><X className="h-4 w-4" />Cancel workout</Button>
                     <Button type="button" className="rounded-2xl border-amber bg-amber-muted text-amber hover:bg-amber/20" onClick={handleComplete} disabled={saving || workout.logged_sets.length === 0}>Finish workout</Button>
                   </div>

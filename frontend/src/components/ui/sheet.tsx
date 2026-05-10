@@ -33,7 +33,7 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 grid max-h-[90vh] gap-5 overflow-hidden rounded-t-sheet border border-border bg-bg-card p-5 shadow-card outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(92vw,44rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet md:p-6 md:data-[state=closed]:fade-out-0 md:data-[state=open]:fade-in-0 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:zoom-in-95 md:data-[state=closed]:slide-out-to-left-1/2 md:data-[state=closed]:slide-out-to-top-[48%] md:data-[state=open]:slide-in-from-left-1/2 md:data-[state=open]:slide-in-from-top-[48%]",
+        "fixed inset-x-0 bottom-0 z-50 grid max-h-[90vh] gap-5 overflow-hidden overscroll-contain rounded-t-sheet border border-border bg-bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-card outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(92vw,44rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet md:p-6 md:pb-6 md:data-[state=closed]:fade-out-0 md:data-[state=open]:fade-in-0 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:zoom-in-95 md:data-[state=closed]:slide-out-to-left-1/2 md:data-[state=closed]:slide-out-to-top-[48%] md:data-[state=open]:slide-in-from-left-1/2 md:data-[state=open]:slide-in-from-top-[48%]",
         className,
       )}
       {...props}
