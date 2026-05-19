@@ -703,7 +703,7 @@ function ActiveFocusSection({
           ) : (
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-6 text-text-secondary">
-                Create a bouldering or top-rope project when you want to track attempts over time.
+                Create a bouldering or top-rope project when you want to track tries over time.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
                 <ActionButton label="Create project" accent="indigo" onClick={() => onQuickLog("project")} />

@@ -442,6 +442,7 @@ function GymForm({ initialExerciseId, onSuccess }: { initialExerciseId?: number 
               onChange={setNotes}
               collapsedLabel="+ Add set/session notes"
               placeholder="How the set moved, setup notes, or next target."
+              accent="amber"
             />
           </FormPanel>
           <ErrorState error={error} />
@@ -527,6 +528,7 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
               collapsedLabel="+ Add cue notes"
               placeholder="What should you remember before training this?"
               helperText="Optional cues for this first saved form video."
+              accent="amber"
             />
           </>
         ) : null}

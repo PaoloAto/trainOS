@@ -1030,6 +1030,8 @@ function ReferenceCard({ reference, onPreview, onEdit, onDelete }: { reference: 
   const sourceLabel = canPreview ? sourceLabels[reference.source] : externalReferenceLabel(reference.source);
 
   async function handleDelete() {
+    const confirmed = window.confirm("Delete this form video/cue?");
+    if (!confirmed) return;
     setDeleting(true);
     try {
       await onDelete();
@@ -1066,10 +1068,10 @@ function ReferenceCard({ reference, onPreview, onEdit, onDelete }: { reference: 
             <ExternalLink className="h-3.5 w-3.5" />
             Open
           </a>
-          <Button type="button" variant="secondary" size="icon" onClick={onEdit}>
+          <Button type="button" variant="secondary" size="icon" onClick={onEdit} title="Edit form video/cue">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button type="button" variant="danger" size="icon" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" variant="danger" size="icon" onClick={handleDelete} disabled={deleting} title="Delete form video/cue">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>

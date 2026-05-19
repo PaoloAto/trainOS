@@ -43,7 +43,7 @@ export function ReferencePreview({
 
   async function handleDelete() {
     if (!onDelete) return;
-    const confirmed = window.confirm("Delete this reference link?");
+    const confirmed = window.confirm("Delete this form video/cue?");
     if (!confirmed) return;
     setDeleting(true);
     try {
@@ -133,12 +133,12 @@ export function ReferencePreview({
         {showControls && (onEdit || onDelete) ? (
           <div className="ml-auto flex gap-1">
             {onEdit ? (
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-text-muted hover:text-text-primary" onClick={onEdit} title="Edit reference">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-text-muted hover:text-text-primary" onClick={onEdit} title="Edit form video/cue">
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
             ) : null}
             {onDelete ? (
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-red hover:bg-red-muted hover:text-red" onClick={handleDelete} disabled={deleting} title="Delete reference">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-red hover:bg-red-muted hover:text-red" onClick={handleDelete} disabled={deleting} title="Delete form video/cue">
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             ) : null}
