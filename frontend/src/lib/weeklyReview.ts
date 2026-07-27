@@ -17,6 +17,7 @@ export type WeeklyGoalCard = {
   id: "run" | "gym" | "climb";
   title: string;
   accent: ReviewAccent;
+  hasTarget: boolean;
   primaryLabel: string;
   primaryValue: string;
   secondaryValue: string;
@@ -75,7 +76,7 @@ export type WeeklyReviewOutput = {
 };
 
 function safeNumber(value: number | null | undefined) {
-  return value === null || value === undefined || Number.isNaN(value) ? 0 : value;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function formatNumber(value: number, digits = 0) {
@@ -92,44 +93,97 @@ function remainingLabel(target: number, actual: number, unit: string) {
   return `${remaining} ${pluralize(unit, remaining)} left`;
 }
 
-function goalStatus(actual: number, target: number): Pick<WeeklyGoalCard, "statusLabel" | "statusTone" | "progressPercent"> {
+function goalStatus(
+  actual: number,
+  target: number,
+): Pick<WeeklyGoalCard, "hasTarget" | "statusLabel" | "statusTone" | "progressPercent"> {
   if (target <= 0) {
     return {
-      statusLabel: actual > 0 ? "In progress" : "Not started",
-      statusTone: actual > 0 ? "info" : "attention",
-      progressPercent: actual > 0 ? 100 : 0,
+      hasTarget: false,
+      statusLabel: "No target",
+      statusTone: "info",
+      progressPercent: 0,
     };
   }
 
   if (actual >= target) {
-    return { statusLabel: "Target met", statusTone: "positive", progressPercent: 100 };
+    return { hasTarget: true, statusLabel: "Target met", statusTone: "positive", progressPercent: 100 };
   }
 
   if (actual > 0) {
     return {
+      hasTarget: true,
       statusLabel: "In progress",
       statusTone: "info",
       progressPercent: Math.max(8, Math.min(99, Math.round((actual / target) * 100))),
     };
   }
 
-  return { statusLabel: "Not started", statusTone: "attention", progressPercent: 0 };
+  return { hasTarget: true, statusLabel: "Not started", statusTone: "attention", progressPercent: 0 };
 }
 
-function runningGoalStatus(actualSessions: number, targetSessions: number, actualKm: number, targetKm: number | null) {
-  const sessionMet = targetSessions <= 0 || actualSessions >= targetSessions;
-  const distanceMet = !targetKm || targetKm <= 0 || actualKm >= targetKm;
-  const sessionProgress = targetSessions > 0 ? actualSessions / targetSessions : actualSessions > 0 ? 1 : 0;
-  const distanceProgress = targetKm && targetKm > 0 ? actualKm / targetKm : sessionProgress;
-  const progress = Math.min(1, Math.min(sessionProgress || 0, distanceProgress || 0));
+function runningGoalStatus(
+  actualSessions: number,
+  targetSessions: number,
+  actualKm: number,
+  targetKm: number,
+): Pick<WeeklyGoalCard, "hasTarget" | "statusLabel" | "statusTone" | "progressPercent"> {
+  const activeProgress = [
+    ...(targetSessions > 0 ? [actualSessions / targetSessions] : []),
+    ...(targetKm > 0 ? [actualKm / targetKm] : []),
+  ];
 
-  if (sessionMet && distanceMet) {
-    return { statusLabel: "Target met", statusTone: "positive" as const, progressPercent: 100 };
+  if (activeProgress.length === 0) {
+    return {
+      hasTarget: false,
+      statusLabel: "No target",
+      statusTone: "info",
+      progressPercent: 0,
+    };
   }
-  if (actualSessions > 0 || actualKm > 0) {
-    return { statusLabel: "In progress", statusTone: "info" as const, progressPercent: Math.max(8, Math.round(progress * 100)) };
+
+  const progress = Math.min(...activeProgress);
+  if (activeProgress.every((value) => value >= 1)) {
+    return { hasTarget: true, statusLabel: "Target met", statusTone: "positive", progressPercent: 100 };
   }
-  return { statusLabel: "Not started", statusTone: "attention" as const, progressPercent: 0 };
+  if (activeProgress.some((value) => value > 0)) {
+    return {
+      hasTarget: true,
+      statusLabel: "In progress",
+      statusTone: "info",
+      progressPercent: Math.max(0, Math.min(99, Math.round(progress * 100))),
+    };
+  }
+  return { hasTarget: true, statusLabel: "Not started", statusTone: "attention", progressPercent: 0 };
+}
+
+function runningGoalDetails(
+  actualSessions: number,
+  targetSessions: number,
+  actualKm: number,
+  targetKm: number,
+): string[] {
+  const hasSessionTarget = targetSessions > 0;
+  const hasDistanceTarget = targetKm > 0;
+
+  if (!hasSessionTarget && !hasDistanceTarget) {
+    return ["No weekly running target set."];
+  }
+
+  const sessionComplete = !hasSessionTarget || actualSessions >= targetSessions;
+  const distanceComplete = !hasDistanceTarget || actualKm >= targetKm;
+  if (sessionComplete && distanceComplete) {
+    return ["Weekly running target complete."];
+  }
+
+  const details: string[] = [];
+  if (hasSessionTarget && !sessionComplete) {
+    details.push(remainingLabel(targetSessions, actualSessions, "run"));
+  }
+  if (hasDistanceTarget && !distanceComplete) {
+    details.push(`${formatNumber(Math.max(0, targetKm - actualKm), 1)} km left to distance target.`);
+  }
+  return details;
 }
 
 function uniqueItems<T extends { id: string }>(items: T[], limit: number): T[] {
@@ -154,8 +208,9 @@ function buildSnapshot(input: WeeklyReviewInput): WeeklyReviewSnapshot {
   const climbSessions = safeNumber(input.climbingAnalytics?.summary.sessions_this_week);
   const climbTries = safeNumber(input.climbingAnalytics?.summary.attempts_this_week);
   const activeProjectCount =
-    input.climbingAnalytics?.summary.active_project_count ??
-    input.climbingProjects.filter((project) => project.status === "active").length;
+    input.climbingAnalytics === null
+      ? input.climbingProjects.filter((project) => project.status === "active").length
+      : safeNumber(input.climbingAnalytics.summary.active_project_count);
 
   return {
     totalTrainingSessions: runSessions + gymSessions + climbSessions,
@@ -172,8 +227,10 @@ function buildSnapshot(input: WeeklyReviewInput): WeeklyReviewSnapshot {
 
 function buildGoalCards(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapshot): WeeklyGoalCard[] {
   const runTarget = safeNumber(input.trainingPreferences.running_sessions_per_week);
-  const runDistanceTarget = input.trainingPreferences.running_weekly_distance_target_km;
+  const runDistanceTarget = safeNumber(input.trainingPreferences.running_weekly_distance_target_km);
   const runStatus = runningGoalStatus(snapshot.runSessions, runTarget, snapshot.runDistanceKm, runDistanceTarget);
+  const hasRunSessionTarget = runTarget > 0;
+  const hasRunDistanceTarget = runDistanceTarget > 0;
 
   const gymTarget = safeNumber(input.trainingPreferences.gym_sessions_per_week);
   const gymStatus = goalStatus(snapshot.gymSessions, gymTarget);
@@ -186,36 +243,35 @@ function buildGoalCards(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapshot
       id: "run",
       title: "Running",
       accent: "green",
-      primaryLabel: "Runs",
-      primaryValue: `${snapshot.runSessions} / ${runTarget}`,
-      secondaryValue:
-        runDistanceTarget && runDistanceTarget > 0
+      primaryLabel: hasRunSessionTarget ? "Runs" : hasRunDistanceTarget ? "Distance" : "Runs this week",
+      primaryValue: hasRunSessionTarget
+        ? `${snapshot.runSessions} / ${runTarget}`
+        : hasRunDistanceTarget
           ? `${formatNumber(snapshot.runDistanceKm, 1)} / ${formatNumber(runDistanceTarget, 1)} km`
-          : `${formatNumber(snapshot.runDistanceKm, 1)} km this week`,
+          : String(snapshot.runSessions),
+      secondaryValue:
+        hasRunSessionTarget && hasRunDistanceTarget
+          ? `${formatNumber(snapshot.runDistanceKm, 1)} / ${formatNumber(runDistanceTarget, 1)} km`
+          : hasRunDistanceTarget
+            ? `${snapshot.runSessions} ${pluralize("run", snapshot.runSessions)} this week`
+            : `${formatNumber(snapshot.runDistanceKm, 1)} km this week`,
       ...runStatus,
-      details: [
-        runTarget > 0 && snapshot.runSessions < runTarget
-          ? remainingLabel(runTarget, snapshot.runSessions, "run")
-          : runDistanceTarget && runDistanceTarget > 0 && snapshot.runDistanceKm < runDistanceTarget
-            ? `${formatNumber(Math.max(0, runDistanceTarget - snapshot.runDistanceKm), 1)} km left to distance target.`
-            : "Run session target checked.",
-        runDistanceTarget && runDistanceTarget > 0
-          ? `${formatNumber(Math.max(0, runDistanceTarget - snapshot.runDistanceKm), 1)} km left to distance target.`
-          : "No weekly distance target set.",
-      ],
+      details: runningGoalDetails(snapshot.runSessions, runTarget, snapshot.runDistanceKm, runDistanceTarget),
     },
     {
       id: "gym",
       title: "Gym",
       accent: "amber",
       primaryLabel: "Sessions",
-      primaryValue: `${snapshot.gymSessions} / ${gymTarget}`,
+      primaryValue: gymTarget > 0 ? `${snapshot.gymSessions} / ${gymTarget}` : String(snapshot.gymSessions),
       secondaryValue: `${snapshot.gymSets} sets this week`,
       ...gymStatus,
       details: [
         gymTarget > 0 && snapshot.gymSessions < gymTarget
           ? remainingLabel(gymTarget, snapshot.gymSessions, "session")
-          : "Gym session target checked.",
+          : gymTarget > 0
+            ? "Weekly gym target complete."
+            : "No weekly gym target set.",
         snapshot.gymSets > 0 ? `${snapshot.gymSets} strength sets logged.` : "No strength sets logged yet.",
       ],
     },
@@ -224,13 +280,15 @@ function buildGoalCards(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapshot
       title: "Climbing",
       accent: "indigo",
       primaryLabel: "Sessions",
-      primaryValue: `${snapshot.climbSessions} / ${climbTarget}`,
+      primaryValue: climbTarget > 0 ? `${snapshot.climbSessions} / ${climbTarget}` : String(snapshot.climbSessions),
       secondaryValue: `${snapshot.climbTries} tries this week`,
       ...climbStatus,
       details: [
         climbTarget > 0 && snapshot.climbSessions < climbTarget
           ? remainingLabel(climbTarget, snapshot.climbSessions, "session")
-          : "Climbing session target checked.",
+          : climbTarget > 0
+            ? "Weekly climbing target complete."
+            : "No weekly climbing target set.",
         snapshot.activeProjectCount > 0
           ? `${snapshot.activeProjectCount} active ${pluralize("project", snapshot.activeProjectCount)}.`
           : "No active climbing projects.",
@@ -254,7 +312,7 @@ function buildHighlights(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapsho
   const items: WeeklyReviewItem[] = [];
 
   for (const goal of goals) {
-    if (goal.statusLabel === "Target met") {
+    if (goal.hasTarget && goal.statusLabel === "Target met") {
       items.push({
         id: `${goal.id}-target-met`,
         tone: "positive",
@@ -342,36 +400,67 @@ function buildAttention(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapshot
     });
   }
 
-  for (const goal of goals) {
-    if (goal.statusLabel !== "Target met") {
+  const runGoal = goals.find((goal) => goal.id === "run");
+  if (runGoal?.hasTarget && runGoal.statusLabel !== "Target met") {
+    if (snapshot.runSessions === 0) {
       items.push({
-        id: `${goal.id}-target-open`,
+        id: "no-run",
         tone: "attention",
-        pillar: goal.id,
-        title: `${goal.title} target open`,
-        message: goal.details[0] ?? "Target still needs work this week.",
+        pillar: "run",
+        title: "No runs this week",
+        message: "Log a run to start the active weekly running target.",
+      });
+    } else {
+      items.push({
+        id: "run-target-open",
+        tone: "attention",
+        pillar: "run",
+        title: "Running target open",
+        message: runGoal.details[0] ?? "Running target still needs work this week.",
       });
     }
   }
 
-  if (snapshot.gymSessions === 0) {
-    items.push({
-      id: "no-gym",
-      tone: "attention",
-      pillar: "gym",
-      title: "No gym sessions this week",
-      message: "Quick log a session or start a routine when strength work is next.",
-    });
+  const gymGoal = goals.find((goal) => goal.id === "gym");
+  if (gymGoal?.hasTarget && gymGoal.statusLabel !== "Target met") {
+    if (snapshot.gymSessions === 0) {
+      items.push({
+        id: "no-gym",
+        tone: "attention",
+        pillar: "gym",
+        title: "No gym sessions this week",
+        message: "Quick log a session or start a routine when strength work is next.",
+      });
+    } else {
+      items.push({
+        id: "gym-target-open",
+        tone: "attention",
+        pillar: "gym",
+        title: "Gym target open",
+        message: gymGoal.details[0] ?? "Gym target still needs work this week.",
+      });
+    }
   }
 
-  if (snapshot.climbSessions === 0) {
-    items.push({
-      id: "no-climb",
-      tone: "attention",
-      pillar: "climb",
-      title: "No climbing sessions this week",
-      message: "Log bouldering or top rope to keep the climbing baseline current.",
-    });
+  const climbGoal = goals.find((goal) => goal.id === "climb");
+  if (climbGoal?.hasTarget && climbGoal.statusLabel !== "Target met") {
+    if (snapshot.climbSessions === 0) {
+      items.push({
+        id: "no-climb",
+        tone: "attention",
+        pillar: "climb",
+        title: "No climbing sessions this week",
+        message: "Log bouldering or top rope to keep the climbing baseline current.",
+      });
+    } else {
+      items.push({
+        id: "climb-target-open",
+        tone: "attention",
+        pillar: "climb",
+        title: "Climbing target open",
+        message: climbGoal.details[0] ?? "Climbing target still needs work this week.",
+      });
+    }
   }
 
   if (staleProject) {
@@ -416,7 +505,7 @@ function buildNextActions(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapsh
   }
 
   const runGoal = goals.find((goal) => goal.id === "run");
-  if (runGoal && runGoal.statusLabel !== "Target met") {
+  if (runGoal?.hasTarget && runGoal.statusLabel !== "Target met") {
     actions.push({
       id: "log-run",
       accent: "green",
@@ -429,7 +518,7 @@ function buildNextActions(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapsh
   }
 
   const gymGoal = goals.find((goal) => goal.id === "gym");
-  if (gymGoal && gymGoal.statusLabel !== "Target met" && !input.activeWorkout) {
+  if (gymGoal?.hasTarget && gymGoal.statusLabel !== "Target met" && !input.activeWorkout) {
     actions.push({
       id: "start-gym",
       accent: "amber",
@@ -442,7 +531,7 @@ function buildNextActions(input: WeeklyReviewInput, snapshot: WeeklyReviewSnapsh
   }
 
   const climbGoal = goals.find((goal) => goal.id === "climb");
-  if (climbGoal && climbGoal.statusLabel !== "Target met") {
+  if (climbGoal?.hasTarget && climbGoal.statusLabel !== "Target met") {
     actions.push({
       id: "log-climb",
       accent: "indigo",

@@ -178,7 +178,21 @@ function addRunningInsights(
 
   const runsThisWeek = runningAnalytics?.current_week.week_run_count ?? 0;
   if (target > 0) {
-    if (runsThisWeek >= target) {
+    if (runsThisWeek === 0) {
+      insights.push({
+        id: preferences.primary_focus === "running" ? "run:focus-no-week" : "run:target-not-started",
+        priority: preferences.primary_focus === "running" ? 16 : 36,
+        pillar: "run",
+        tone: "attention",
+        title: preferences.primary_focus === "running" ? "Running focus needs a run" : "Running target not started",
+        message:
+          preferences.primary_focus === "running"
+            ? "Running is your focus, but no run is logged this week."
+            : `No runs logged this week. ${target} ${pluralize("run", target)} are planned.`,
+        actionLabel: "Open Run",
+        actionTarget: "run",
+      });
+    } else if (runsThisWeek >= target) {
       insights.push({
         id: "run:target-met",
         priority: 28,
