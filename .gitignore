@@ -130,3 +130,6 @@ logs/
 *.temp
 *.bak
 *.orig
+
+# Local tooling state
+.tokensave/
