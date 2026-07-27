@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/auth/login/", login_view, name="api-auth-login"),
     path("api/auth/logout/", logout_view, name="api-auth-logout"),
     path("api/auth/me/", me_view, name="api-auth-me"),
+    path("api/preferences/", include("users.urls")),
     path("api/journal/", include("journal.urls")),
     path("api/running/", include("running.urls")),
     path("api/gym/", include("gym.urls")),

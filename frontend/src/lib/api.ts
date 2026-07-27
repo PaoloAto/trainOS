@@ -13,6 +13,59 @@ export type MeResponse = {
   user: User | null;
 };
 
+export type TrainingPrimaryFocus = "balanced" | "running" | "gym" | "climbing";
+export type RunningGoal = "general_fitness" | "5k" | "10k" | "half_marathon" | "marathon";
+export type GymGoal = "strength" | "hypertrophy" | "general_fitness" | "climbing_support";
+export type ClimbingGoal = "bouldering" | "top_rope" | "mixed" | "general_progression";
+
+export type TrainingPreferences = {
+  id: number;
+  primary_focus: TrainingPrimaryFocus;
+  running_goal: RunningGoal;
+  running_sessions_per_week: number;
+  running_weekly_distance_target_km: number | null;
+  gym_goal: GymGoal;
+  gym_sessions_per_week: number;
+  climbing_goal: ClimbingGoal;
+  climbing_sessions_per_week: number;
+  climbing_target_bouldering_grade: string;
+  climbing_target_route_grade: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TrainingPreferencesInput = Partial<
+  Pick<
+    TrainingPreferences,
+    | "primary_focus"
+    | "running_goal"
+    | "running_sessions_per_week"
+    | "running_weekly_distance_target_km"
+    | "gym_goal"
+    | "gym_sessions_per_week"
+    | "climbing_goal"
+    | "climbing_sessions_per_week"
+    | "climbing_target_bouldering_grade"
+    | "climbing_target_route_grade"
+  >
+>;
+
+export const defaultTrainingPreferences: TrainingPreferences = {
+  id: 0,
+  primary_focus: "balanced",
+  running_goal: "general_fitness",
+  running_sessions_per_week: 2,
+  running_weekly_distance_target_km: null,
+  gym_goal: "general_fitness",
+  gym_sessions_per_week: 2,
+  climbing_goal: "general_progression",
+  climbing_sessions_per_week: 1,
+  climbing_target_bouldering_grade: "V4",
+  climbing_target_route_grade: "5.10a",
+  created_at: "",
+  updated_at: "",
+};
+
 export type LoginInput = {
   username: string;
   password: string;
@@ -835,6 +888,13 @@ export const api = {
 
   async logout() {
     return mutate<{ status: "ok" }>("/api/auth/logout/", "POST");
+  },
+
+  trainingPreferences: {
+    get: () => request<TrainingPreferences>("/api/preferences/training/"),
+
+    update: (input: TrainingPreferencesInput) =>
+      mutate<TrainingPreferences>("/api/preferences/training/", "PATCH", input),
   },
 
   checkIns: {

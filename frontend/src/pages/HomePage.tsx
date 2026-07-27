@@ -1,5 +1,5 @@
-import { ArrowRight, ClipboardCheck, Dumbbell, FileUp, Mountain, Plus, Timer } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, ClipboardCheck, Dumbbell, FileUp, Mountain, Plus, Target, Timer } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { QuickLogSheet, type QuickLogMode } from "@/components/app/QuickLogSheet";
@@ -8,6 +8,9 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { QuickActionButton } from "@/components/common/QuickActionButton";
 import { EmptyActionCard, ErrorStateCard, LoadingStateCard, LowDataCard } from "@/components/common/StateCards";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type {
   ActiveWorkout,
   ClimbingAnalytics,
@@ -18,11 +21,14 @@ import type {
   GymSession,
   RunActivity,
   RunningAnalytics,
+  TrainingPreferences,
+  TrainingPreferencesInput,
   User,
   WorkoutTemplate,
 } from "@/lib/api";
-import { api } from "@/lib/api";
+import { api, defaultTrainingPreferences } from "@/lib/api";
 import { formatDuration, formatPace, formatShortDate } from "@/lib/format";
+import { buildTrainingBrief, type TrainingBriefActionTarget, type TrainingBriefInsight } from "@/lib/trainingBrief";
 import { cn } from "@/lib/utils";
 
 type HomePageProps = {
@@ -40,11 +46,13 @@ type HomeData = {
   climbingSessions: ClimbingSession[];
   climbingAnalytics: ClimbingAnalytics | null;
   climbingProjects: ClimbingProject[];
+  trainingPreferences: TrainingPreferences;
 };
 
-type HomeErrors = Partial<Record<"running" | "gym" | "climbing", string>>;
+type HomeErrors = Partial<Record<"running" | "gym" | "climbing" | "preferences", string>>;
 
 type Accent = "green" | "amber" | "indigo";
+type BriefTone = "positive" | "attention" | "info";
 
 const emptyHomeData: HomeData = {
   checkIn: null,
@@ -57,6 +65,7 @@ const emptyHomeData: HomeData = {
   climbingSessions: [],
   climbingAnalytics: null,
   climbingProjects: [],
+  trainingPreferences: defaultTrainingPreferences,
 };
 
 const accentStyles: Record<
@@ -96,6 +105,67 @@ const accentStyles: Record<
   },
 };
 
+const briefToneStyles: Record<BriefTone, { border: string; badge: string; text: string; button: string }> = {
+  positive: {
+    border: "border-green/50",
+    badge: "border-green bg-green-muted text-green",
+    text: "text-green",
+    button: "border-green bg-green-muted text-green hover:bg-green/20",
+  },
+  attention: {
+    border: "border-amber/50",
+    badge: "border-amber bg-amber-muted text-amber",
+    text: "text-amber",
+    button: "border-amber bg-amber-muted text-amber hover:bg-amber/20",
+  },
+  info: {
+    border: "border-indigo/50",
+    badge: "border-indigo bg-indigo-muted text-indigo",
+    text: "text-indigo",
+    button: "border-indigo bg-indigo-muted text-indigo hover:bg-indigo/20",
+  },
+};
+
+const briefPillarLabels: Record<TrainingBriefInsight["pillar"], string> = {
+  readiness: "Readiness",
+  run: "Run",
+  gym: "Gym",
+  climb: "Climb",
+  balance: "Balance",
+};
+
+const primaryFocusLabels: Record<TrainingPreferences["primary_focus"], string> = {
+  balanced: "Balanced",
+  running: "Running",
+  gym: "Gym",
+  climbing: "Climbing",
+};
+
+const runningGoalLabels: Record<TrainingPreferences["running_goal"], string> = {
+  general_fitness: "General fitness",
+  "5k": "5K",
+  "10k": "10K",
+  half_marathon: "Half marathon",
+  marathon: "Marathon",
+};
+
+const gymGoalLabels: Record<TrainingPreferences["gym_goal"], string> = {
+  strength: "Strength",
+  hypertrophy: "Hypertrophy",
+  general_fitness: "General fitness",
+  climbing_support: "Climbing support",
+};
+
+const climbingGoalLabels: Record<TrainingPreferences["climbing_goal"], string> = {
+  bouldering: "Bouldering",
+  top_rope: "Top rope",
+  mixed: "Mixed",
+  general_progression: "General progression",
+};
+
+const selectClassName =
+  "h-10 w-full rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition focus:border-green focus:ring-2 focus:ring-green/20";
+
 function sortedByDateDesc<T>(items: T[], getDate: (item: T) => string | null | undefined): T[] {
   return [...items].sort((a, b) => {
     const dateA = getDate(a);
@@ -114,6 +184,21 @@ function labelize(value: string | null | undefined) {
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function pluralize(label: string, count: number) {
+  return count === 1 ? label : `${label}s`;
+}
+
+function targetProgressLabel(current: number, target: number, label: string) {
+  return target > 0
+    ? `${current} / ${target} ${pluralize(label, target)}`
+    : `${current} ${pluralize(label, current)} this week`;
+}
+
+function formatOptionalNumber(value: number | null | undefined, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  return value.toFixed(digits);
 }
 
 function getReadiness(checkIn: DailyCheckIn | null) {
@@ -187,6 +272,7 @@ async function fetchHomeData(): Promise<{ data: HomeData; errors: HomeErrors }> 
     climbingSessionsResult,
     climbingAnalyticsResult,
     climbingProjectsResult,
+    trainingPreferencesResult,
   ] = await Promise.allSettled([
     api.checkIns.today(),
     api.runs.list(),
@@ -198,6 +284,7 @@ async function fetchHomeData(): Promise<{ data: HomeData; errors: HomeErrors }> 
     api.climbingSessions.list(),
     api.climbingAnalytics.get(),
     api.climbingProjects.list(),
+    api.trainingPreferences.get(),
   ] as const);
 
   const errors: HomeErrors = {};
@@ -220,6 +307,9 @@ async function fetchHomeData(): Promise<{ data: HomeData; errors: HomeErrors }> 
   ) {
     errors.climbing = "Climbing data is temporarily unavailable.";
   }
+  if (trainingPreferencesResult.status === "rejected") {
+    errors.preferences = "Training goals are using safe defaults for now.";
+  }
 
   return {
     data: {
@@ -233,6 +323,10 @@ async function fetchHomeData(): Promise<{ data: HomeData; errors: HomeErrors }> 
       climbingSessions: climbingSessionsResult.status === "fulfilled" ? climbingSessionsResult.value : [],
       climbingAnalytics: climbingAnalyticsResult.status === "fulfilled" ? climbingAnalyticsResult.value : null,
       climbingProjects: climbingProjectsResult.status === "fulfilled" ? climbingProjectsResult.value : [],
+      trainingPreferences:
+        trainingPreferencesResult.status === "fulfilled"
+          ? trainingPreferencesResult.value
+          : defaultTrainingPreferences,
     },
     errors,
   };
@@ -300,6 +394,7 @@ export function HomePage({ user }: HomePageProps) {
   const [errors, setErrors] = useState<HomeErrors>({});
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -340,6 +435,46 @@ export function HomePage({ user }: HomePageProps) {
     [data.climbingProjects],
   );
   const activeWorkoutProgress = useMemo(() => getActiveWorkoutProgress(data.activeWorkout), [data.activeWorkout]);
+  const trainingBrief = useMemo(
+    () =>
+      buildTrainingBrief({
+        checkIn: data.checkIn,
+        runningAnalytics: data.runningAnalytics,
+        gymAnalytics: data.gymAnalytics,
+        climbingAnalytics: data.climbingAnalytics,
+        activeWorkout: data.activeWorkout,
+        climbingProjects: data.climbingProjects,
+        latestRun,
+        latestGymSession,
+        latestClimbingSession,
+        trainingPreferences: data.trainingPreferences,
+      }),
+    [
+      data.activeWorkout,
+      data.checkIn,
+      data.climbingAnalytics,
+      data.climbingProjects,
+      data.gymAnalytics,
+      data.runningAnalytics,
+      data.trainingPreferences,
+      latestClimbingSession,
+      latestGymSession,
+      latestRun,
+    ],
+  );
+
+  function handleTrainingBriefAction(target?: TrainingBriefActionTarget) {
+    if (!target) return;
+    if (target === "check-in") {
+      openQuickLog("check-in");
+      return;
+    }
+    if (target === "project") {
+      openQuickLog("project");
+      return;
+    }
+    navigate(`/${target}`);
+  }
 
   if (loading) {
     return (
@@ -371,10 +506,19 @@ export function HomePage({ user }: HomePageProps) {
           onCheckIn={() => openQuickLog("check-in")}
         />
 
+        <TrainingBriefSection insights={trainingBrief} onAction={handleTrainingBriefAction} />
+
+        <TrainingGoalsSection
+          preferences={data.trainingPreferences}
+          error={errors.preferences}
+          onEdit={() => setGoalsOpen(true)}
+        />
+
         <WeeklyBalanceSection
           runningAnalytics={data.runningAnalytics}
           gymAnalytics={data.gymAnalytics}
           climbingAnalytics={data.climbingAnalytics}
+          trainingPreferences={data.trainingPreferences}
           errors={errors}
         />
 
@@ -407,6 +551,16 @@ export function HomePage({ user }: HomePageProps) {
         onOpenChange={setQuickLogOpen}
         initialMode={quickLogMode}
         onSaved={() => setRefreshKey((key) => key + 1)}
+      />
+      <TrainingGoalsSheet
+        key={`${goalsOpen}-${data.trainingPreferences.id}-${data.trainingPreferences.updated_at}`}
+        open={goalsOpen}
+        preferences={data.trainingPreferences}
+        onOpenChange={setGoalsOpen}
+        onSaved={(preferences) => {
+          setData((current) => ({ ...current, trainingPreferences: preferences }));
+          setRefreshKey((key) => key + 1);
+        }}
       />
     </>
   );
@@ -484,17 +638,449 @@ function TodayReadinessCard({
   );
 }
 
+function TrainingBriefSection({
+  insights,
+  onAction,
+}: {
+  insights: TrainingBriefInsight[];
+  onAction: (target?: TrainingBriefActionTarget) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        eyebrow="Training Brief"
+        title="Today's rule-based brief"
+        description="Deterministic signals from readiness, running, gym, and climbing."
+      />
+      {insights.length === 0 ? (
+        <LowDataCard
+          accent="indigo"
+          title="No brief yet"
+          message="Log across Run, Gym, and Climb to unlock your training brief."
+        />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {insights.map((insight, index) => (
+            <TrainingBriefCard key={insight.id} insight={insight} delay={index * 0.03} onAction={onAction} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrainingBriefCard({
+  insight,
+  delay,
+  onAction,
+}: {
+  insight: TrainingBriefInsight;
+  delay: number;
+  onAction: (target?: TrainingBriefActionTarget) => void;
+}) {
+  const tone = briefToneStyles[insight.tone];
+
+  return (
+    <Card className={cn("p-4", tone.border)} delay={delay}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className={cn("rounded-full border px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em]", tone.badge)}>
+          {briefPillarLabels[insight.pillar]}
+        </span>
+        <span className={cn("text-[0.62rem] font-semibold uppercase tracking-[0.16em]", tone.text)}>
+          {insight.tone}
+        </span>
+      </div>
+      <h3 className="mt-3 text-base font-semibold text-text-primary">{insight.title}</h3>
+      <p className="mt-2 text-sm leading-6 text-text-secondary">{insight.message}</p>
+      {insight.actionLabel && insight.actionTarget ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className={cn("mt-4 w-full rounded-xl sm:w-auto", tone.button)}
+          onClick={() => onAction(insight.actionTarget)}
+        >
+          {insight.actionLabel}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
+function TrainingGoalsSection({
+  preferences,
+  error,
+  onEdit,
+}: {
+  preferences: TrainingPreferences;
+  error?: string;
+  onEdit: () => void;
+}) {
+  const runDistanceTarget = formatOptionalNumber(preferences.running_weekly_distance_target_km, 1);
+
+  return (
+    <Card className="border-green/40 p-5 md:p-6" delay={0.04}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-green bg-green-muted px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-green">
+              Goals
+            </span>
+            <span className="rounded-full border border-border bg-bg-elevated px-2.5 py-1 text-xs font-semibold text-text-secondary">
+              {primaryFocusLabels[preferences.primary_focus]} focus
+            </span>
+          </div>
+          <h2 className="mt-3 text-xl font-semibold text-text-primary">Training goals</h2>
+          <p className="mt-1 text-sm leading-6 text-text-secondary">
+            Weekly targets for the Training Brief and balance cards.
+          </p>
+          {error ? <p className="mt-2 text-sm leading-6 text-amber">{error}</p> : null}
+        </div>
+        <Button type="button" variant="secondary" className="w-full rounded-2xl border-green bg-green-muted text-green hover:bg-green/20 sm:w-auto" onClick={onEdit}>
+          <Target className="h-4 w-4" />
+          Edit goals
+        </Button>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <GoalTile
+          accent="green"
+          title="Run target"
+          value={`${preferences.running_sessions_per_week} ${pluralize("run", preferences.running_sessions_per_week)}/week`}
+          detail={
+            runDistanceTarget
+              ? `${runDistanceTarget} km weekly distance · ${runningGoalLabels[preferences.running_goal]}`
+              : runningGoalLabels[preferences.running_goal]
+          }
+        />
+        <GoalTile
+          accent="amber"
+          title="Gym target"
+          value={`${preferences.gym_sessions_per_week} ${pluralize("session", preferences.gym_sessions_per_week)}/week`}
+          detail={gymGoalLabels[preferences.gym_goal]}
+        />
+        <GoalTile
+          accent="indigo"
+          title="Climb target"
+          value={`${preferences.climbing_sessions_per_week} ${pluralize("session", preferences.climbing_sessions_per_week)}/week`}
+          detail={`${climbingGoalLabels[preferences.climbing_goal]} · ${preferences.climbing_target_bouldering_grade} / ${preferences.climbing_target_route_grade}`}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function GoalTile({
+  accent,
+  title,
+  value,
+  detail,
+}: {
+  accent: Accent;
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className={cn("rounded-2xl border bg-bg-elevated p-4", accentStyles[accent].border)}>
+      <p className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">{title}</p>
+      <p className={cn("mt-2 font-mono text-lg font-semibold", accentStyles[accent].text)}>{value}</p>
+      <p className="mt-1 text-xs leading-5 text-text-secondary">{detail}</p>
+    </div>
+  );
+}
+
+type TrainingGoalsFormState = {
+  primary_focus: TrainingPreferences["primary_focus"];
+  running_goal: TrainingPreferences["running_goal"];
+  running_sessions_per_week: string;
+  running_weekly_distance_target_km: string;
+  gym_goal: TrainingPreferences["gym_goal"];
+  gym_sessions_per_week: string;
+  climbing_goal: TrainingPreferences["climbing_goal"];
+  climbing_sessions_per_week: string;
+  climbing_target_bouldering_grade: string;
+  climbing_target_route_grade: string;
+};
+
+function toGoalsForm(preferences: TrainingPreferences): TrainingGoalsFormState {
+  return {
+    primary_focus: preferences.primary_focus,
+    running_goal: preferences.running_goal,
+    running_sessions_per_week: String(preferences.running_sessions_per_week),
+    running_weekly_distance_target_km:
+      preferences.running_weekly_distance_target_km === null ? "" : String(preferences.running_weekly_distance_target_km),
+    gym_goal: preferences.gym_goal,
+    gym_sessions_per_week: String(preferences.gym_sessions_per_week),
+    climbing_goal: preferences.climbing_goal,
+    climbing_sessions_per_week: String(preferences.climbing_sessions_per_week),
+    climbing_target_bouldering_grade: preferences.climbing_target_bouldering_grade,
+    climbing_target_route_grade: preferences.climbing_target_route_grade,
+  };
+}
+
+function TrainingGoalsSheet({
+  open,
+  preferences,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  preferences: TrainingPreferences;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (preferences: TrainingPreferences) => void;
+}) {
+  const [form, setForm] = useState<TrainingGoalsFormState>(() => toGoalsForm(preferences));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function updateForm<K extends keyof TrainingGoalsFormState>(key: K, value: TrainingGoalsFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function parseSessionTarget(value: string, label: string) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 14) {
+      throw new Error(`${label} sessions per week must be a whole number between 0 and 14.`);
+    }
+    return parsed;
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const runningSessions = parseSessionTarget(form.running_sessions_per_week, "Running");
+      const gymSessions = parseSessionTarget(form.gym_sessions_per_week, "Gym");
+      const climbingSessions = parseSessionTarget(form.climbing_sessions_per_week, "Climbing");
+      const distanceText = form.running_weekly_distance_target_km.trim();
+      const distanceTarget = distanceText ? Number(distanceText) : null;
+
+      if (distanceTarget !== null && (!Number.isFinite(distanceTarget) || distanceTarget < 0)) {
+        throw new Error("Running weekly distance target must be empty or zero or greater.");
+      }
+
+      const payload: TrainingPreferencesInput = {
+        primary_focus: form.primary_focus,
+        running_goal: form.running_goal,
+        running_sessions_per_week: runningSessions,
+        running_weekly_distance_target_km: distanceTarget,
+        gym_goal: form.gym_goal,
+        gym_sessions_per_week: gymSessions,
+        climbing_goal: form.climbing_goal,
+        climbing_sessions_per_week: climbingSessions,
+        climbing_target_bouldering_grade: form.climbing_target_bouldering_grade.trim() || "V4",
+        climbing_target_route_grade: form.climbing_target_route_grade.trim() || "5.10a",
+      };
+
+      setSaving(true);
+      const updatedPreferences = await api.trainingPreferences.update(payload);
+      onSaved(updatedPreferences);
+      setSuccess("Training goals saved.");
+      window.setTimeout(() => onOpenChange(false), 450);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save training goals.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto md:w-[min(92vw,44rem)]">
+        <SheetHeader>
+          <SheetTitle>Training goals</SheetTitle>
+          <SheetDescription>
+            Set simple weekly targets for Home balance and the deterministic Training Brief.
+          </SheetDescription>
+        </SheetHeader>
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          {error ? (
+            <div className="rounded-2xl border border-red bg-red-muted px-4 py-3 text-sm leading-6 text-red">
+              {error}
+            </div>
+          ) : null}
+          {success ? (
+            <div className="rounded-2xl border border-green bg-green-muted px-4 py-3 text-sm leading-6 text-green">
+              {success}
+            </div>
+          ) : null}
+
+          <div className="rounded-2xl border border-border bg-bg-elevated p-4">
+            <GoalFormField label="Primary focus">
+              <select
+                className={selectClassName}
+                value={form.primary_focus}
+                onChange={(event) => updateForm("primary_focus", event.target.value as TrainingPreferences["primary_focus"])}
+              >
+                {Object.entries(primaryFocusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </GoalFormField>
+          </div>
+
+          <div className="rounded-2xl border border-green/40 bg-bg-elevated p-4">
+            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-green">Running</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <GoalFormField label="Running goal">
+                <select
+                  className={selectClassName}
+                  value={form.running_goal}
+                  onChange={(event) => updateForm("running_goal", event.target.value as TrainingPreferences["running_goal"])}
+                >
+                  {Object.entries(runningGoalLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </GoalFormField>
+              <GoalFormField label="Sessions/week">
+                <Input
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={form.running_sessions_per_week}
+                  onChange={(event) => updateForm("running_sessions_per_week", event.target.value)}
+                />
+              </GoalFormField>
+              <GoalFormField label="Weekly distance target km" className="md:col-span-2">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={form.running_weekly_distance_target_km}
+                  placeholder="Optional"
+                  onChange={(event) => updateForm("running_weekly_distance_target_km", event.target.value)}
+                />
+              </GoalFormField>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-amber/40 bg-bg-elevated p-4">
+            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-amber">Gym</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <GoalFormField label="Gym goal">
+                <select
+                  className={selectClassName}
+                  value={form.gym_goal}
+                  onChange={(event) => updateForm("gym_goal", event.target.value as TrainingPreferences["gym_goal"])}
+                >
+                  {Object.entries(gymGoalLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </GoalFormField>
+              <GoalFormField label="Sessions/week">
+                <Input
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={form.gym_sessions_per_week}
+                  onChange={(event) => updateForm("gym_sessions_per_week", event.target.value)}
+                />
+              </GoalFormField>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-indigo/40 bg-bg-elevated p-4">
+            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-indigo">Climbing</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <GoalFormField label="Climbing goal">
+                <select
+                  className={selectClassName}
+                  value={form.climbing_goal}
+                  onChange={(event) => updateForm("climbing_goal", event.target.value as TrainingPreferences["climbing_goal"])}
+                >
+                  {Object.entries(climbingGoalLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </GoalFormField>
+              <GoalFormField label="Sessions/week">
+                <Input
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={form.climbing_sessions_per_week}
+                  onChange={(event) => updateForm("climbing_sessions_per_week", event.target.value)}
+                />
+              </GoalFormField>
+              <GoalFormField label="Bouldering target">
+                <Input
+                  value={form.climbing_target_bouldering_grade}
+                  placeholder="V4"
+                  onChange={(event) => updateForm("climbing_target_bouldering_grade", event.target.value)}
+                />
+              </GoalFormField>
+              <GoalFormField label="Route target">
+                <Input
+                  value={form.climbing_target_route_grade}
+                  placeholder="5.10a"
+                  onChange={(event) => updateForm("climbing_target_route_grade", event.target.value)}
+                />
+              </GoalFormField>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" className="rounded-2xl" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" className="rounded-2xl" disabled={saving}>
+              {saving ? "Saving..." : "Save goals"}
+            </Button>
+          </div>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function GoalFormField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
 function WeeklyBalanceSection({
   runningAnalytics,
   gymAnalytics,
   climbingAnalytics,
+  trainingPreferences,
   errors,
 }: {
   runningAnalytics: RunningAnalytics | null;
   gymAnalytics: GymAnalytics | null;
   climbingAnalytics: ClimbingAnalytics | null;
+  trainingPreferences: TrainingPreferences;
   errors: HomeErrors;
 }) {
+  const runningDistanceTarget = trainingPreferences.running_weekly_distance_target_km;
+
   return (
     <div className="space-y-4">
       <SectionHeader
@@ -514,8 +1100,17 @@ function WeeklyBalanceSection({
           }
           detail={
             runningAnalytics
-              ? `${runningAnalytics.current_week.week_run_count} runs this week`
+              ? targetProgressLabel(
+                  runningAnalytics.current_week.week_run_count,
+                  trainingPreferences.running_sessions_per_week,
+                  "run",
+                )
               : errors.running ?? "Import or log a run to build your week."
+          }
+          targetDetail={
+            runningAnalytics && runningDistanceTarget
+              ? `${formatNumber(runningAnalytics.current_week.week_distance_km, 1)} / ${formatNumber(runningDistanceTarget, 1)} km target`
+              : undefined
           }
         />
         <BalanceCard
@@ -525,9 +1120,14 @@ function WeeklyBalanceSection({
           value={gymAnalytics ? `${gymAnalytics.summary.sessions_this_week}` : "--"}
           detail={
             gymAnalytics
-              ? `${gymAnalytics.summary.sets_this_week} sets this week`
+              ? targetProgressLabel(
+                  gymAnalytics.summary.sessions_this_week,
+                  trainingPreferences.gym_sessions_per_week,
+                  "session",
+                )
               : errors.gym ?? "Quick log gym work to build your strength map."
           }
+          targetDetail={gymAnalytics ? `${gymAnalytics.summary.sets_this_week} sets this week` : undefined}
         />
         <BalanceCard
           accent="indigo"
@@ -536,9 +1136,14 @@ function WeeklyBalanceSection({
           value={climbingAnalytics ? `${climbingAnalytics.summary.sessions_this_week}` : "--"}
           detail={
             climbingAnalytics
-              ? `${climbingAnalytics.summary.attempts_this_week} tries this week`
+              ? targetProgressLabel(
+                  climbingAnalytics.summary.sessions_this_week,
+                  trainingPreferences.climbing_sessions_per_week,
+                  "session",
+                )
               : errors.climbing ?? "Log bouldering or top rope to build your baseline."
           }
+          targetDetail={climbingAnalytics ? `${climbingAnalytics.summary.attempts_this_week} tries this week` : undefined}
         />
       </div>
     </div>
@@ -551,12 +1156,14 @@ function BalanceCard({
   title,
   value,
   detail,
+  targetDetail,
 }: {
   accent: Accent;
   icon: typeof Timer;
   title: string;
   value: string;
   detail: string;
+  targetDetail?: string;
 }) {
   return (
     <Card className={cn("p-4", accentStyles[accent].border)} delay={0.04}>
@@ -567,6 +1174,11 @@ function BalanceCard({
             {value}
           </p>
           <p className="mt-2 text-sm leading-6 text-text-secondary">{detail}</p>
+          {targetDetail ? (
+            <p className={cn("mt-2 w-fit rounded-full border px-2.5 py-1 text-xs font-semibold", accentStyles[accent].badge)}>
+              {targetDetail}
+            </p>
+          ) : null}
         </div>
         <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border", accentStyles[accent].icon)}>
           <Icon className="h-5 w-5" />
