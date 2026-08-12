@@ -37,7 +37,7 @@ class PortableImportTests(TestCase):
     def _source_data(self):
         TrainingPreferences.objects.create(user=self.source, primary_focus="gym")
         DailyCheckIn.objects.create(user=self.source, date=date(2026, 1, 2), energy=8)
-        private = Exercise.objects.create(user=self.source, name="Portable bench", primary_muscle_group=self.muscle, movement_pattern="push", equipment="barbell")
+        private = Exercise.objects.create(user=self.source, name="Portable bench", primary_muscle_group=self.muscle, movement_pattern="push", equipment="barbell", is_custom=False)
         self.shared = Exercise.objects.create(user=None, name="Portable pull-up", primary_muscle_group=self.muscle, movement_pattern="pull", equipment="bodyweight", is_custom=False)
         ExerciseReference.objects.create(user=self.source, exercise=private, url="https://example.test/form", source="website")
         batch = ImportBatch.objects.create(user=self.source, original_filename="run.tcx", uploaded_file="imports/running/run.tcx", status="completed")
@@ -161,12 +161,28 @@ class PortableImportTests(TestCase):
         GymSet.objects.filter(exercise=self.shared).delete()
         Exercise.objects.filter(pk=self.shared.pk).delete()
         with self._backup(): self._import(apply=True)
-        self.assertTrue(Exercise.objects.filter(user=self.target, name="Portable pull-up").exists())
+        copied = Exercise.objects.get(user=self.target, name="Portable pull-up")
+        self.assertTrue(copied.is_custom)
+        self.assertFalse(Exercise.objects.get(user=self.target, name="Portable bench").is_custom)
 
         target = get_user_model().objects.create_user(username="muscle-target", password="secret")
         archive = self._mutated_archive(lambda manifest, data: data["gym"]["exercises"][0].update(primary_muscle_group="missing"))
         with self.assertRaisesMessage(CommandError, "muscle group"):
             call_command("import_trainos_data", file=str(archive), user=target.username)
+
+    def test_active_workout_reps_must_be_positive_in_preflight(self):
+        cases = (None, 0, -1, True, 8.5)
+        for reps in cases:
+            with self.subTest(reps=reps):
+                def invalid_reps(manifest, data):
+                    item = {"exercise": data["gym"]["active_workout"]["logged_sets"][0]["exercise"]}
+                    if reps is not None: item["reps"] = reps
+                    data["gym"]["active_workout"]["logged_sets"] = [item]
+                with patch("users.management.commands.import_trainos_data.create_sqlite_backup") as backup:
+                    with self.assertRaisesMessage(CommandError, "positive integer"):
+                        self._import(archive=self._mutated_archive(invalid_reps))
+                backup.assert_not_called()
+                self.assertFalse(Exercise.objects.filter(user=self.target).exists())
 
     def test_backup_failure_and_mid_import_failure_leave_target_empty(self):
         with patch("users.management.commands.import_trainos_data.resolve_sqlite_database_path", return_value=Path("test.sqlite3")), patch("users.management.commands.import_trainos_data.create_sqlite_backup", side_effect=CommandError("backup failed")):

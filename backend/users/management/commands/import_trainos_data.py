@@ -44,16 +44,20 @@ def _error(message, exc=None):
     raise CommandError(message) from exc
 
 
-def _positive_id(value, label):
+def _positive_integer(value, label):
     if isinstance(value, bool):
-        _error(f"Invalid {label}: expected a positive integer source ID.")
+        _error(f"Invalid {label}: expected a positive integer.")
     try:
         parsed = int(value)
     except (TypeError, ValueError, OverflowError) as exc:
-        _error(f"Invalid {label}: expected a positive integer source ID.", exc)
+        _error(f"Invalid {label}: expected a positive integer.", exc)
     if parsed <= 0 or (isinstance(value, float) and not value.is_integer()):
-        _error(f"Invalid {label}: expected a positive integer source ID.")
+        _error(f"Invalid {label}: expected a positive integer.")
     return parsed
+
+
+def _positive_id(value, label):
+    return _positive_integer(value, f"{label} source ID")
 
 
 def _date(value, label):
@@ -250,6 +254,7 @@ class ImportPlanner:
             for position, item in enumerate(active["logged_sets"], 1):
                 if not isinstance(item, dict): _error(f"Invalid active workout logged set {position}: expected an object.")
                 _require_reference(item.get("exercise"), indexes["exercises"], "active workout logged-set exercise")
+                _positive_integer(item.get("reps"), f"active workout logged set {position} reps")
 
     def _fields(self, rows):
         p = self.data["preferences"]
@@ -382,14 +387,14 @@ class Restorer:
                 if matches:
                     obj = matches[0]; self.shared_reused += 1
                 else:
-                    obj = self._new_exercise(row, muscles); self.shared_copied += 1; self.created["exercises"] += 1
+                    obj = self._new_exercise(row, muscles, force_custom=True); self.shared_copied += 1; self.created["exercises"] += 1
             else:
                 obj = self._new_exercise(row, muscles); self.created["exercises"] += 1
             self.maps["exercises"][_positive_id(row["source_id"], "exercise source_id")] = obj
 
-    def _new_exercise(self, row, muscles):
+    def _new_exercise(self, row, muscles, force_custom=False):
         primary = MuscleGroup.objects.get(name=row["primary_muscle_group"])
-        obj = Exercise.objects.create(user=self.user, name=row["name"], primary_muscle_group=primary, movement_pattern=row["movement_pattern"], equipment=row["equipment"], form_notes=row["form_notes"], is_custom=row["is_custom"], is_archived=row["is_archived"], archived_at=row["archived_at"])
+        obj = Exercise.objects.create(user=self.user, name=row["name"], primary_muscle_group=primary, movement_pattern=row["movement_pattern"], equipment=row["equipment"], form_notes=row["form_notes"], is_custom=True if force_custom else row["is_custom"], is_archived=row["is_archived"], archived_at=row["archived_at"])
         obj.secondary_muscle_groups.set(muscles)
         _restore_timestamps(Exercise, obj.pk, {"created_at": row["created_at"], "updated_at": row["updated_at"]})
         return obj
