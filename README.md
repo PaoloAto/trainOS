@@ -82,6 +82,17 @@ Still intentionally not included:
 
 ## Quickstart: Run Locally Without Docker
 
+## Portable Data Export
+
+Create a portable ZIP of one user's personal TrainOS training data:
+
+```powershell
+python manage.py export_trainos_data --user <user>
+python manage.py export_trainos_data --user <user> --output-dir "<path>"
+```
+
+The ZIP contains versioned canonical JSON plus human-readable CSV files. Keep it secure: it includes your personal training notes and source metadata. Uploaded activity files themselves are not included in Phase 9A.1. Restore/import is not implemented yet; `data.json` is the canonical format intended for a future restore workflow.
+
 TrainOS uses SQLite by default for local development.
 
 ### 1. Create a local environment file

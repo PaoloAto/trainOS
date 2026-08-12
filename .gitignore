@@ -133,3 +133,7 @@ logs/
 
 # Local tooling state
 .tokensave/
+
+# Portable TrainOS data exports
+exports/
+backend/exports/
