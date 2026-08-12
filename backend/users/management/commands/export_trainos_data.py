@@ -98,6 +98,7 @@ class ExportBuilder:
         active = ActiveWorkout.objects.filter(user=self.user).select_related("template").first()
         exercise_ids = set(Exercise.objects.filter(user=self.user).values_list("id", flat=True))
         exercise_ids.update(row.exercise_id for row in gym_sets + template_items + references)
+        exercise_ids.update(self._active_logged_set_exercise_ids(active))
         exercises = list(Exercise.objects.filter(id__in=exercise_ids).select_related("primary_muscle_group").prefetch_related("secondary_muscle_groups").order_by("name", "id"))
         selected_exercise_ids = {row.pk for row in exercises}
         for row in exercises:
@@ -140,12 +141,38 @@ class ExportBuilder:
         self.validate(data)
         return data
 
+    @staticmethod
+    def _active_logged_set_exercise_ids(active):
+        if not active:
+            return set()
+        return ExportBuilder._logged_set_exercise_ids(active.logged_sets)
+
+    @staticmethod
+    def _logged_set_exercise_ids(logged_sets):
+        if not isinstance(logged_sets, list):
+            raise CommandError("Integrity error: active workout logged_sets must be a list.")
+        exercise_ids = set()
+        for index, item in enumerate(logged_sets):
+            if not isinstance(item, dict):
+                raise CommandError(f"Integrity error: active workout logged set {index + 1} must be an object.")
+            value = item.get("exercise")
+            if isinstance(value, bool):
+                raise CommandError(f"Integrity error: active workout logged set {index + 1} has an invalid exercise ID.")
+            try:
+                exercise_id = int(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise CommandError(f"Integrity error: active workout logged set {index + 1} has an invalid exercise ID.") from exc
+            if exercise_id <= 0 or (isinstance(value, float) and not value.is_integer()):
+                raise CommandError(f"Integrity error: active workout logged set {index + 1} has an invalid exercise ID.")
+            exercise_ids.add(exercise_id)
+        return exercise_ids
+
     def _preferences(self, row):
         return self._record(row, ("primary_focus", "running_goal", "running_sessions_per_week", "running_weekly_distance_target_km", "gym_goal", "gym_sessions_per_week", "climbing_goal", "climbing_sessions_per_week", "climbing_target_bouldering_grade", "climbing_target_route_grade", "created_at", "updated_at"))
     def _checkin(self, row):
         return {"source_id": row.pk, **self._record(row, ("date", "sleep_hours", "sleep_quality", "mood", "energy", "soreness", "stress", "body_weight", "notes", "created_at", "updated_at"))}
     def _batch(self, row):
-        return {"source_id": row.pk, "uploaded_file_name": _safe_upload_name(row.uploaded_file.name), **self._record(row, ("source", "file_type", "original_filename", "status", "imported_count", "skipped_count", "error_count", "errors", "created_at", "updated_at"))}
+        return {"source_id": row.pk, "uploaded_file_name": _safe_upload_name(row.uploaded_file.name), "original_filename": _safe_upload_name(row.original_filename), **self._record(row, ("source", "file_type", "status", "imported_count", "skipped_count", "error_count", "errors", "created_at", "updated_at"))}
     def _run(self, row):
         return {"source_id": row.pk, "import_batch_source_id": row.import_batch_id, **self._record(row, ("title", "started_at", "distance_km", "duration_seconds", "avg_pace_seconds_per_km", "avg_hr", "max_hr", "elevation_gain_m", "run_type", "perceived_effort", "notes", "source", "source_activity_id", "raw_metadata", "created_at", "updated_at"))}
     def _exercise(self, row):
@@ -181,6 +208,12 @@ class ExportBuilder:
         active = gym["active_workout"]
         if active and active["template_source_id"] is not None and active["template_source_id"] not in ids(gym["workout_templates"]):
             raise CommandError("Integrity error: active workout template does not resolve in export.")
+        if active:
+            active_exercise_ids = ExportBuilder._logged_set_exercise_ids(active["logged_sets"])
+            exported_exercise_ids = ids(gym["exercises"])
+            for exercise_id in active_exercise_ids:
+                if exercise_id not in exported_exercise_ids:
+                    raise CommandError("Integrity error: active workout logged set exercise does not resolve in export.")
 
 
 def _dataset(data, path):

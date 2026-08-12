@@ -137,3 +137,9 @@ logs/
 # Portable TrainOS data exports
 exports/
 backend/exports/
+
+# Local TrainOS SQLite backups
+backups/
+backend/backups/
+*.sqlite3-wal
+*.sqlite3-shm

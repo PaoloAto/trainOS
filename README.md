@@ -82,22 +82,68 @@ Still intentionally not included:
 
 ## Quickstart: Run Locally Without Docker
 
-## Portable Data Export
-
-Create a portable ZIP of one user's personal TrainOS training data:
-
-```powershell
-python manage.py export_trainos_data --user <user>
-python manage.py export_trainos_data --user <user> --output-dir "<path>"
-```
-
-The ZIP contains versioned canonical JSON plus human-readable CSV files. Keep it secure: it includes your personal training notes and source metadata. Uploaded activity files themselves are not included in Phase 9A.1. Restore/import is not implemented yet; `data.json` is the canonical format intended for a future restore workflow.
-
-TrainOS uses SQLite by default for local development.
-
 ### 1. Create a local environment file
 
 From the project root:
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+### 2. Start the backend
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+### 3. Start the frontend
+
+In a second terminal from the project root:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Data Safety and Portability
+
+### Local SQLite Backup
+
+Create a full local SQLite recovery backup from the backend directory:
+
+```powershell
+cd backend
+python manage.py backup_trainos
+python manage.py backup_trainos --output-dir "<path>"
+```
+
+Backups are complete raw SQLite database copies, including the local application data needed for recovery. Backup folders and portable exports contain personal training data; store them securely.
+
+To restore a known-good raw SQLite backup manually:
+
+1. Stop Django. Never replace the active SQLite database while Django is running.
+2. Preserve the current database first.
+3. Choose a known-good backup and confirm both metadata integrity checks are `ok`.
+4. Replace the configured SQLite database with the backup's `db.sqlite3`.
+5. Run `python manage.py check` and `python manage.py migrate --check`.
+6. Restart the application.
+
+### Portable Data Export
+
+Create a user-scoped ZIP with canonical versioned JSON and human-readable CSV files:
+
+```powershell
+cd backend
+python manage.py export_trainos_data --user <user>
+python manage.py export_trainos_data --user <user> --output-dir "<path>"
+```
+
+Portable export is for user-scoped data portability; local SQLite backup is for full local recovery. Uploaded activity files themselves are not included. Portable `data.json` import/restore is not implemented yet.
