@@ -147,3 +147,22 @@ python manage.py export_trainos_data --user <user> --output-dir "<path>"
 ```
 
 Portable export is for user-scoped data portability; local SQLite backup is for full local recovery. Uploaded activity files themselves are not included. Portable `data.json` import/restore is not implemented yet.
+
+### Portable Import / Restore
+
+Validate a portable export before making any changes (the default is a zero-write dry run):
+
+```powershell
+cd backend
+python manage.py import_trainos_data --file "<zip>" --user <user>
+```
+
+Apply a validated import explicitly:
+
+```powershell
+python manage.py import_trainos_data --file "<zip>" --user <user> --apply
+```
+
+Apply creates an automatic, integrity-checked full SQLite backup first. The target user must have no existing training history; an existing preferences row may be synchronized. Source database IDs are remapped to new target records. Shared exercises are reused only when their identity matches exactly; otherwise TrainOS creates a private target-user copy.
+
+Restore reads only canonical `data.json`, never CSV convenience files. Activity-file attachments are not restored because their bytes are not included in portable exports. Merge and overwrite/replace restore are not implemented. Keep both export ZIPs and automatic backups secure.
