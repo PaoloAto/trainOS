@@ -1484,7 +1484,7 @@ function MiniMetric({ label, value, unit }: { label: string; value: string; unit
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={cn("block space-y-2", className)}>
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</span>
+      <span className="text-sm font-medium text-text-secondary">{label}</span>
       {children}
     </label>
   );

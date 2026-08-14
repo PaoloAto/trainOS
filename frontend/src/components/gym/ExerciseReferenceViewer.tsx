@@ -321,10 +321,13 @@ function MovementLibraryFilters({
     <div className="mt-5 space-y-3 rounded-3xl border border-border bg-bg-base/40 p-3">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <Input
+          type="search"
+          aria-label="Search movements"
+          accent="amber"
           value={searchText}
           onChange={(event) => onSearchTextChange(event.target.value)}
           placeholder="Search movement, muscle, equipment..."
-          className="h-11 focus:border-amber focus:ring-amber/20"
+          className="h-11"
         />
         <div className="grid grid-cols-3 gap-2">
           {regionOptions.map((option) => (
@@ -763,7 +766,7 @@ function ViewerMetric({ label, value }: { label: string; value: string }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</span>
+      <span className="text-sm font-medium text-text-secondary">{label}</span>
       {children}
     </label>
   );

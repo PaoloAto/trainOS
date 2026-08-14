@@ -1007,7 +1007,7 @@ function WorkoutCue({ label, value }: { label: string; value: string }) {
 }
 
 function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
-  return <label className={cn("block space-y-2", className)}><span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</span>{children}</label>;
+  return <label className={cn("block space-y-2", className)}><span className="text-sm font-medium text-text-secondary">{label}</span>{children}</label>;
 }
 
 function templateItemToDraft(item: WorkoutTemplateExercise): TemplateItemDraft {

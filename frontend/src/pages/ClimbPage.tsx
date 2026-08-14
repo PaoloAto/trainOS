@@ -1044,5 +1044,5 @@ function labelize(value: string) {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</span>{children}</label>;
+  return <label className="block space-y-2"><span className="text-sm font-medium text-text-secondary">{label}</span>{children}</label>;
 }
