@@ -20,15 +20,12 @@ type OptionalNotesFieldProps = {
 const accentClasses = {
   green: {
     collapsed: "hover:border-green hover:text-green",
-    focus: "focus:border-green focus:ring-2 focus:ring-green/20",
   },
   amber: {
     collapsed: "hover:border-amber hover:text-amber",
-    focus: "focus:border-amber focus:ring-2 focus:ring-amber/20",
   },
   indigo: {
     collapsed: "hover:border-indigo hover:text-indigo",
-    focus: "focus:border-indigo focus:ring-2 focus:ring-indigo/20",
   },
 };
 
@@ -86,7 +83,7 @@ export function OptionalNotesField({
       <textarea
         id={notesId}
         aria-describedby={helperText ? helperId : undefined}
-        className={cn(textareaClassName, accentClasses[accent].focus)}
+        className={textareaClassName(accent)}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

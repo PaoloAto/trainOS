@@ -21,6 +21,7 @@ import { ExerciseReferenceViewer } from "@/components/gym/ExerciseReferenceViewe
 import { WorkoutTemplatesSection } from "@/components/gym/WorkoutTemplatesSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import {
   Sheet,
   SheetContent,
@@ -49,7 +50,6 @@ const movementOptions = ["", "push", "pull", "squat", "hinge", "lunge", "carry",
 const equipmentOptions = ["", "barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"];
 const splitOptions = ["push", "pull", "legs", "upper", "lower", "full_body", "custom"];
 
-const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/20";
 type GymView = "exercises" | "routines";
 type BodyRegionFilter = "all" | "upper" | "lower";
 const coverageFilterStorageKey = "trainos:gym:muscleCoverageFilter";
@@ -68,6 +68,7 @@ export function GymPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [previewReference, setPreviewReference] = useState<ExerciseReference | null>(null);
   const [gymView, setGymView] = useState<GymView>("exercises");
+  const [resumeRequest, setResumeRequest] = useState(0);
   const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
   const [useInRoutineExercise, setUseInRoutineExercise] = useState<Exercise | null>(null);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
@@ -146,6 +147,11 @@ export function GymPage() {
     setQuickLogOpen(true);
   }
 
+  function requestResumeWorkout() {
+    setGymView("routines");
+    setResumeRequest((current) => current + 1);
+  }
+
   return (
     <>
       <PageHeader
@@ -160,7 +166,7 @@ export function GymPage() {
         {error ? <ErrorStateCard title="Gym unavailable" message={error} /> : null}
         {!loading && !error && analytics ? (
           <>
-            {activeWorkout ? <ActiveWorkoutPriority activeWorkout={activeWorkout} onResume={() => setGymView("routines")} /> : null}
+            {activeWorkout ? <ActiveWorkoutPriority activeWorkout={activeWorkout} onResume={requestResumeWorkout} /> : null}
             <GymFlowGuide compact={activeExercises.length > 0 && templates.length > 0 && savedVideoCount > 0} />
             <GymModeTabs activeView={gymView} onChange={setGymView} />
 
@@ -203,6 +209,8 @@ export function GymPage() {
                   activeWorkout={activeWorkout}
                   exercises={exercises}
                   muscleGroups={muscleGroups}
+                  resumeRequest={resumeRequest}
+                  onResumeRequestHandled={() => setResumeRequest(0)}
                   onChanged={() => loadData(selectedExerciseId)}
                   onStartWithoutTemplate={() => openQuickLog()}
                 />
@@ -748,17 +756,17 @@ function ExerciseEditForm({ exercise, muscleGroups, onCancel, onSaved }: { exerc
       <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} required className="focus:border-amber focus:ring-amber/20" /></Field>
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Primary muscle">
-          <select className={selectClass} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)}>
+          <select className={selectClassName("amber")} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)}>
             {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </Field>
         <Field label="Equipment">
-          <select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
+          <select className={selectClassName("amber")} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
             {equipmentOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
         <Field label="Pattern">
-          <select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>
+          <select className={selectClassName("amber")} value={movement} onChange={(event) => setMovement(event.target.value)}>
             {movementOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
@@ -862,17 +870,17 @@ function ExerciseCreateForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
       <Field label="Movement name"><Input value={name} onChange={(event) => setName(event.target.value)} required placeholder="Bench Press" className="focus:border-amber focus:ring-amber/20" /></Field>
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Primary muscle">
-          <select className={selectClass} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)} required>
+          <select className={selectClassName("amber")} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)} required>
             {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </Field>
         <Field label="Equipment">
-          <select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
+          <select className={selectClassName("amber")} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
             {equipmentOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
         <Field label="Pattern">
-          <select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>
+          <select className={selectClassName("amber")} value={movement} onChange={(event) => setMovement(event.target.value)}>
             {movementOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
@@ -1010,7 +1018,7 @@ function UseInRoutineContent({
             </div>
             {mode === "existing" ? (
               <Field label="Routine" className="mt-4">
-                <select className={selectClass} value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+                <select className={selectClassName("amber")} value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
                   {availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
                 </select>
               </Field>
@@ -1018,7 +1026,7 @@ function UseInRoutineContent({
               <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
                 <Field label="Routine name"><Input value={routineName} onChange={(event) => setRoutineName(event.target.value)} className="focus:border-amber focus:ring-amber/20" /></Field>
                 <Field label="Split">
-                  <select className={selectClass} value={splitType} onChange={(event) => setSplitType(event.target.value)}>
+                  <select className={selectClassName("amber")} value={splitType} onChange={(event) => setSplitType(event.target.value)}>
                     {splitOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
                   </select>
                 </Field>
@@ -1156,7 +1164,7 @@ function ReferenceForm({ exercise, reference, onCancel, onSaved }: { exercise: E
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Source">
           <select
-            className={selectClass}
+            className={selectClassName("amber")}
             value={source}
             onChange={(event) => {
               setSource(event.target.value as ExerciseReferenceSource);
@@ -1346,7 +1354,7 @@ function SessionEditForm({ session, exercises, onSaved, onDeleted }: { session: 
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Date"><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="focus:border-amber focus:ring-amber/20" /></Field>
         <Field label="Split">
-          <select className={selectClass} value={splitType} onChange={(event) => setSplitType(event.target.value)}>
+          <select className={selectClassName("amber")} value={splitType} onChange={(event) => setSplitType(event.target.value)}>
             {splitOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
@@ -1382,7 +1390,7 @@ function SessionEditForm({ session, exercises, onSaved, onDeleted }: { session: 
             </div>
             <div className="grid gap-3 md:grid-cols-5">
               <Field label="Exercise" className="md:col-span-2">
-                <select className={selectClass} value={gymSet.exercise} onChange={(event) => updateSet(index, { exercise: event.target.value })}>
+                <select className={selectClassName("amber")} value={gymSet.exercise} onChange={(event) => updateSet(index, { exercise: event.target.value })}>
                   {exerciseOptions.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}
                 </select>
               </Field>

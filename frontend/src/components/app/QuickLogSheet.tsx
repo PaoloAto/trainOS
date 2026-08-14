@@ -7,6 +7,7 @@ import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { QuickActionButton } from "@/components/common/QuickActionButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -31,8 +32,6 @@ type QuickLogSheetProps = {
   onSaved?: () => void;
 };
 
-const inputClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-green focus:ring-2 focus:ring-green/20 disabled:cursor-not-allowed disabled:opacity-50";
-const selectClass = `${inputClass} w-full`;
 
 const runTypeOptions = ["easy", "long_run", "tempo", "interval", "recovery", "race", "hill", "progression", "other"];
 const splitOptions = ["push", "pull", "legs", "upper", "lower", "full_body", "custom"];
@@ -84,10 +83,10 @@ function isClimbSendLike(sessionType: string, result: string) {
   return ["send", "flash", "clean", "complete"].includes(result);
 }
 
-function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+function Field({ label, htmlFor, children, className }: { label: string; htmlFor: string; children: ReactNode; className?: string }) {
   return (
     <div className={cn("space-y-2", className)}>
-      <Label>{label}</Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
   );
@@ -239,12 +238,12 @@ function CheckInForm({ onSuccess }: { onSuccess: (message: string) => void }) {
       <FormPanel>
         <FormEyebrow>Daily State</FormEyebrow>
         <FieldGrid>
-          <Field label="Sleep"><Input inputMode="decimal" value={sleepHours} onChange={(event) => setSleepHours(event.target.value)} placeholder="7.5 h" /></Field>
-          <Field label="Mood"><Input inputMode="numeric" value={mood} onChange={(event) => setMood(event.target.value)} placeholder="1-10" /></Field>
-          <Field label="Energy"><Input inputMode="numeric" value={energy} onChange={(event) => setEnergy(event.target.value)} placeholder="1-10" /></Field>
-          <Field label="Soreness"><Input inputMode="numeric" value={soreness} onChange={(event) => setSoreness(event.target.value)} placeholder="1-10" /></Field>
+          <Field label="Sleep" htmlFor="quicklog-checkin-sleep"><Input id="quicklog-checkin-sleep" inputMode="decimal" value={sleepHours} onChange={(event) => setSleepHours(event.target.value)} placeholder="7.5 h" /></Field>
+          <Field label="Mood" htmlFor="quicklog-checkin-mood"><Input id="quicklog-checkin-mood" inputMode="numeric" value={mood} onChange={(event) => setMood(event.target.value)} placeholder="1-10" /></Field>
+          <Field label="Energy" htmlFor="quicklog-checkin-energy"><Input id="quicklog-checkin-energy" inputMode="numeric" value={energy} onChange={(event) => setEnergy(event.target.value)} placeholder="1-10" /></Field>
+          <Field label="Soreness" htmlFor="quicklog-checkin-soreness"><Input id="quicklog-checkin-soreness" inputMode="numeric" value={soreness} onChange={(event) => setSoreness(event.target.value)} placeholder="1-10" /></Field>
         </FieldGrid>
-        <Field label="Stress"><Input inputMode="numeric" value={stress} onChange={(event) => setStress(event.target.value)} placeholder="1-10" /></Field>
+        <Field label="Stress" htmlFor="quicklog-checkin-stress"><Input id="quicklog-checkin-stress" inputMode="numeric" value={stress} onChange={(event) => setStress(event.target.value)} placeholder="1-10" /></Field>
         <OptionalNotesField
           label="Check-in notes"
           value={notes}
@@ -299,14 +298,14 @@ function RunForm({ onSuccess }: { onSuccess: (message: string) => void }) {
     <form className="space-y-4" onSubmit={handleSubmit}>
       <FormPanel>
         <FormEyebrow>Manual Run</FormEyebrow>
-        <Field label="Title"><Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Easy Run" /></Field>
+        <Field label="Title" htmlFor="quicklog-run-title"><Input id="quicklog-run-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Easy Run" /></Field>
         <FieldGrid>
-          <Field label="Type"><select className={selectClass} value={runType} onChange={(event) => setRunType(event.target.value)}>{runTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Distance km"><Input inputMode="decimal" value={distanceKm} onChange={(event) => setDistanceKm(event.target.value)} placeholder="5.0" required /></Field>
-          <Field label="Duration min"><Input inputMode="decimal" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} placeholder="32" required /></Field>
-          <Field label="RPE"><Input inputMode="numeric" value={effort} onChange={(event) => setEffort(event.target.value)} placeholder="1-10" /></Field>
+          <Field label="Type" htmlFor="quicklog-run-type"><select id="quicklog-run-type" className={selectClassName()} value={runType} onChange={(event) => setRunType(event.target.value)}>{runTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Distance km" htmlFor="quicklog-run-distance"><Input id="quicklog-run-distance" inputMode="decimal" value={distanceKm} onChange={(event) => setDistanceKm(event.target.value)} placeholder="5.0" required /></Field>
+          <Field label="Duration min" htmlFor="quicklog-run-duration"><Input id="quicklog-run-duration" inputMode="decimal" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} placeholder="32" required /></Field>
+          <Field label="RPE" htmlFor="quicklog-run-rpe"><Input id="quicklog-run-rpe" inputMode="numeric" value={effort} onChange={(event) => setEffort(event.target.value)} placeholder="1-10" /></Field>
         </FieldGrid>
-        <Field label="Avg HR bpm"><Input inputMode="numeric" value={avgHr} onChange={(event) => setAvgHr(event.target.value)} placeholder="145" /></Field>
+        <Field label="Avg HR bpm" htmlFor="quicklog-run-avg-hr"><Input id="quicklog-run-avg-hr" inputMode="numeric" value={avgHr} onChange={(event) => setAvgHr(event.target.value)} placeholder="145" /></Field>
         <OptionalNotesField
           label="Run notes"
           value={notes}
@@ -424,12 +423,12 @@ function GymForm({ initialExerciseId, onSuccess }: { initialExerciseId?: number 
           <FormPanel>
             <FormEyebrow>Gym Session</FormEyebrow>
             <FieldGrid>
-              <Field label="Split"><select className={selectClass} value={splitType} onChange={(event) => setSplitType(event.target.value)}>{splitOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-              <Field label="Exercise"><select className={selectClass} value={exerciseId} onChange={(event) => setExerciseId(event.target.value)}>{exercises.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}</select></Field>
-              <Field label="Sets"><Input inputMode="numeric" value={sets} onChange={(event) => setSets(event.target.value)} /></Field>
-              <Field label="Reps"><Input inputMode="numeric" value={reps} onChange={(event) => setReps(event.target.value)} /></Field>
-              <Field label="Weight"><Input inputMode="decimal" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="0 for bodyweight" /></Field>
-              <Field label="RPE"><Input inputMode="decimal" value={rpe} onChange={(event) => setRpe(event.target.value)} placeholder="1-10" /></Field>
+              <Field label="Split" htmlFor="quicklog-gym-split"><select id="quicklog-gym-split" className={selectClassName("amber")} value={splitType} onChange={(event) => setSplitType(event.target.value)}>{splitOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+              <Field label="Exercise" htmlFor="quicklog-gym-exercise"><select id="quicklog-gym-exercise" className={selectClassName("amber")} value={exerciseId} onChange={(event) => setExerciseId(event.target.value)}>{exercises.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}</select></Field>
+              <Field label="Sets" htmlFor="quicklog-gym-sets"><Input id="quicklog-gym-sets" accent="amber" inputMode="numeric" value={sets} onChange={(event) => setSets(event.target.value)} /></Field>
+              <Field label="Reps" htmlFor="quicklog-gym-reps"><Input id="quicklog-gym-reps" accent="amber" inputMode="numeric" value={reps} onChange={(event) => setReps(event.target.value)} /></Field>
+              <Field label="Weight" htmlFor="quicklog-gym-weight"><Input id="quicklog-gym-weight" accent="amber" inputMode="decimal" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="0 for bodyweight" /></Field>
+              <Field label="RPE" htmlFor="quicklog-gym-rpe"><Input id="quicklog-gym-rpe" accent="amber" inputMode="decimal" value={rpe} onChange={(event) => setRpe(event.target.value)} placeholder="1-10" /></Field>
             </FieldGrid>
             {selectedExercise ? (
               <div className="rounded-2xl border border-amber bg-amber-muted p-3 text-sm leading-6 text-amber">
@@ -506,20 +505,20 @@ function CreateExerciseForm({ muscleGroups, onCreated, onCancel }: { muscleGroup
         <FormEyebrow>New Exercise</FormEyebrow>
         <p className="mt-1 text-sm text-text-secondary">Create once, reuse for fast gym logs.</p>
       </div>
-      <Field label="Exercise name"><Input value={name} onChange={(event) => setName(event.target.value)} required placeholder="Pull-up" /></Field>
+      <Field label="Exercise name" htmlFor="quicklog-exercise-name"><Input id="quicklog-exercise-name" accent="amber" value={name} onChange={(event) => setName(event.target.value)} required placeholder="Pull-up" /></Field>
       <FieldGrid>
-        <Field label="Muscle"><select className={selectClass} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)}>{muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></Field>
-        <Field label="Equipment"><select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>{equipmentOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-        <Field label="Pattern"><select className={selectClass} value={movement} onChange={(event) => setMovement(event.target.value)}>{movementOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+        <Field label="Muscle" htmlFor="quicklog-exercise-muscle"><select id="quicklog-exercise-muscle" className={selectClassName("amber")} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)}>{muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></Field>
+        <Field label="Equipment" htmlFor="quicklog-exercise-equipment"><select id="quicklog-exercise-equipment" className={selectClassName("amber")} value={equipment} onChange={(event) => setEquipment(event.target.value)}>{equipmentOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+        <Field label="Pattern" htmlFor="quicklog-exercise-pattern"><select id="quicklog-exercise-pattern" className={selectClassName("amber")} value={movement} onChange={(event) => setMovement(event.target.value)}>{movementOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
       </FieldGrid>
       <div className="space-y-3 rounded-2xl border border-border bg-bg-base/40 p-3">
         <FormEyebrow>Optional Form Video/Cue</FormEyebrow>
-        <Field label="Video or cue URL"><Input value={referenceUrl} onChange={(event) => handleReferenceUrlChange(event.target.value)} placeholder="YouTube, Reel, TikTok, or website" /></Field>
+        <Field label="Video or cue URL" htmlFor="quicklog-exercise-reference-url"><Input id="quicklog-exercise-reference-url" accent="amber" value={referenceUrl} onChange={(event) => handleReferenceUrlChange(event.target.value)} placeholder="YouTube, Reel, TikTok, or website" /></Field>
         {referenceUrl ? (
           <>
             <FieldGrid>
-              <Field label="Source"><select className={selectClass} value={referenceSource} onChange={(event) => { setReferenceSource(event.target.value as ExerciseReferenceSource); setReferenceSourceTouched(true); }}>{referenceSourceOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-              <Field label="Title"><Input value={referenceTitle} onChange={(event) => setReferenceTitle(event.target.value)} placeholder="Pull-up form cue" /></Field>
+              <Field label="Source" htmlFor="quicklog-exercise-reference-source"><select id="quicklog-exercise-reference-source" className={selectClassName("amber")} value={referenceSource} onChange={(event) => { setReferenceSource(event.target.value as ExerciseReferenceSource); setReferenceSourceTouched(true); }}>{referenceSourceOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+              <Field label="Title" htmlFor="quicklog-exercise-reference-title"><Input id="quicklog-exercise-reference-title" accent="amber" value={referenceTitle} onChange={(event) => setReferenceTitle(event.target.value)} placeholder="Pull-up form cue" /></Field>
             </FieldGrid>
             <OptionalNotesField
               label="Cue notes"
@@ -662,10 +661,10 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
       <FormPanel>
         <FormEyebrow>Climbing Session</FormEyebrow>
         <FieldGrid>
-          <Field label="Type"><select className={selectClass} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Local gym" /></Field>
-          <Field label="Project">
-            <select className={selectClass} value={selectedProjectId} onChange={(event) => handleProjectChange(event.target.value)} disabled={projectsLoading}>
+          <Field label="Type" htmlFor="quicklog-climb-type"><select id="quicklog-climb-type" className={selectClassName("indigo")} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Location" htmlFor="quicklog-climb-location"><Input id="quicklog-climb-location" accent="indigo" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Local gym" /></Field>
+          <Field label="Project" htmlFor="quicklog-climb-project">
+            <select id="quicklog-climb-project" className={selectClassName("indigo")} value={selectedProjectId} onChange={(event) => handleProjectChange(event.target.value)} disabled={projectsLoading}>
               <option value="">No project</option>
               {sortedProjects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -674,12 +673,12 @@ function ClimbForm({ initialProjectId = null, onSuccess }: { initialProjectId?: 
               ))}
             </select>
           </Field>
-          <Field label="Climb name"><Input value={climbName} onChange={(event) => setClimbName(event.target.value)} placeholder="Optional route or boulder name" /></Field>
-          <Field label="Grade system"><select className={selectClass} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Grade"><Input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder={sessionType === "top_rope" ? "5.10a" : "V4"} required /></Field>
-          <Field label="Result"><select className={selectClass} value={result} onChange={(event) => setResult(event.target.value)}>{resultOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Tries"><Input inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
-          <Field label="Style"><select className={selectClass} value={style} onChange={(event) => setStyle(event.target.value)}>{styleOptions.map((option) => <option key={option || "none"} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Climb name" htmlFor="quicklog-climb-name"><Input id="quicklog-climb-name" accent="indigo" value={climbName} onChange={(event) => setClimbName(event.target.value)} placeholder="Optional route or boulder name" /></Field>
+          <Field label="Grade system" htmlFor="quicklog-climb-grade-system"><select id="quicklog-climb-grade-system" className={selectClassName("indigo")} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Grade" htmlFor="quicklog-climb-grade"><Input id="quicklog-climb-grade" accent="indigo" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder={sessionType === "top_rope" ? "5.10a" : "V4"} required /></Field>
+          <Field label="Result" htmlFor="quicklog-climb-result"><select id="quicklog-climb-result" className={selectClassName("indigo")} value={result} onChange={(event) => setResult(event.target.value)}>{resultOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Tries" htmlFor="quicklog-climb-tries"><Input id="quicklog-climb-tries" accent="indigo" inputMode="numeric" value={attempts} onChange={(event) => setAttempts(event.target.value)} /></Field>
+          <Field label="Style" htmlFor="quicklog-climb-style"><select id="quicklog-climb-style" className={selectClassName("indigo")} value={style} onChange={(event) => setStyle(event.target.value)}>{styleOptions.map((option) => <option key={option || "none"} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
         {selectedProject ? (
           <div className="rounded-2xl border border-indigo bg-indigo-muted p-3 text-sm leading-6 text-indigo">
@@ -768,8 +767,10 @@ function ProjectForm({ onSuccess }: { onSuccess: (message: string) => void }) {
           <h3 className="mt-2 text-lg font-bold text-text-primary">Route or boulder target</h3>
           <p className="mt-1 text-sm leading-6 text-text-secondary">Track bouldering projects and top-rope route projects without mixing analytics yet.</p>
         </div>
-        <Field label="Project name">
+        <Field label="Project name" htmlFor="quicklog-project-name">
           <Input
+            id="quicklog-project-name"
+            accent="indigo"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
@@ -777,12 +778,12 @@ function ProjectForm({ onSuccess }: { onSuccess: (message: string) => void }) {
           />
         </Field>
         <FieldGrid>
-          <Field label="Type"><select className={selectClass} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Grade system"><select className={selectClass} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
-          <Field label="Grade"><Input value={grade} onChange={(event) => setGrade(event.target.value)} required placeholder={sessionType === "top_rope" ? "5.10a" : "V5"} /></Field>
-          <Field label="Status"><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}>{projectStatusOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Type" htmlFor="quicklog-project-type"><select id="quicklog-project-type" className={selectClassName("indigo")} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Grade system" htmlFor="quicklog-project-grade-system"><select id="quicklog-project-grade-system" className={selectClassName("indigo")} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
+          <Field label="Grade" htmlFor="quicklog-project-grade"><Input id="quicklog-project-grade" accent="indigo" value={grade} onChange={(event) => setGrade(event.target.value)} required placeholder={sessionType === "top_rope" ? "5.10a" : "V5"} /></Field>
+          <Field label="Status" htmlFor="quicklog-project-status"><select id="quicklog-project-status" className={selectClassName("indigo")} value={status} onChange={(event) => setStatus(event.target.value)}>{projectStatusOptions.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}</select></Field>
         </FieldGrid>
-        <Field label="Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Gym wall, crag, or route area" /></Field>
+        <Field label="Location" htmlFor="quicklog-project-location"><Input id="quicklog-project-location" accent="indigo" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Gym wall, crag, or route area" /></Field>
         <OptionalNotesField
           label="Project notes"
           value={notes}

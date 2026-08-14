@@ -9,6 +9,7 @@ import { QuickActionButton } from "@/components/common/QuickActionButton";
 import { EmptyActionCard, ErrorStateCard, LoadingStateCard, LowDataCard } from "@/components/common/StateCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type {
@@ -162,9 +163,6 @@ const climbingGoalLabels: Record<TrainingPreferences["climbing_goal"], string> =
   mixed: "Mixed",
   general_progression: "General progression",
 };
-
-const selectClassName =
-  "h-10 w-full rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary outline-none transition focus:border-green focus:ring-2 focus:ring-green/20";
 
 function sortedByDateDesc<T>(items: T[], getDate: (item: T) => string | null | undefined): T[] {
   return [...items].sort((a, b) => {
@@ -977,9 +975,10 @@ function TrainingGoalsSheet({
           ) : null}
 
           <div className="rounded-2xl border border-border bg-bg-elevated p-4">
-            <GoalFormField label="Primary focus">
+            <GoalFormField label="Primary focus" htmlFor="training-goals-primary-focus">
               <select
-                className={selectClassName}
+                id="training-goals-primary-focus"
+                className={selectClassName()}
                 value={form.primary_focus}
                 onChange={(event) => updateForm("primary_focus", event.target.value as TrainingPreferences["primary_focus"])}
               >
@@ -995,9 +994,10 @@ function TrainingGoalsSheet({
           <div className="rounded-2xl border border-green/40 bg-bg-elevated p-4">
             <p className="text-[0.68rem] uppercase tracking-[0.2em] text-green">Running</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <GoalFormField label="Running goal">
+              <GoalFormField label="Running goal" htmlFor="training-goals-running-goal">
                 <select
-                  className={selectClassName}
+                  id="training-goals-running-goal"
+                  className={selectClassName()}
                   value={form.running_goal}
                   onChange={(event) => updateForm("running_goal", event.target.value as TrainingPreferences["running_goal"])}
                 >
@@ -1008,8 +1008,9 @@ function TrainingGoalsSheet({
                   ))}
                 </select>
               </GoalFormField>
-              <GoalFormField label="Sessions/week">
+              <GoalFormField label="Sessions/week" htmlFor="training-goals-running-sessions">
                 <Input
+                  id="training-goals-running-sessions"
                   type="number"
                   min={0}
                   max={14}
@@ -1017,8 +1018,9 @@ function TrainingGoalsSheet({
                   onChange={(event) => updateForm("running_sessions_per_week", event.target.value)}
                 />
               </GoalFormField>
-              <GoalFormField label="Weekly distance target km" className="md:col-span-2">
+              <GoalFormField label="Weekly distance target km" htmlFor="training-goals-running-distance" className="md:col-span-2">
                 <Input
+                  id="training-goals-running-distance"
                   type="number"
                   min={0}
                   step="0.1"
@@ -1033,9 +1035,10 @@ function TrainingGoalsSheet({
           <div className="rounded-2xl border border-amber/40 bg-bg-elevated p-4">
             <p className="text-[0.68rem] uppercase tracking-[0.2em] text-amber">Gym</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <GoalFormField label="Gym goal">
+              <GoalFormField label="Gym goal" htmlFor="training-goals-gym-goal">
                 <select
-                  className={selectClassName}
+                  id="training-goals-gym-goal"
+                  className={selectClassName("amber")}
                   value={form.gym_goal}
                   onChange={(event) => updateForm("gym_goal", event.target.value as TrainingPreferences["gym_goal"])}
                 >
@@ -1046,8 +1049,10 @@ function TrainingGoalsSheet({
                   ))}
                 </select>
               </GoalFormField>
-              <GoalFormField label="Sessions/week">
+              <GoalFormField label="Sessions/week" htmlFor="training-goals-gym-sessions">
                 <Input
+                  id="training-goals-gym-sessions"
+                  accent="amber"
                   type="number"
                   min={0}
                   max={14}
@@ -1061,9 +1066,10 @@ function TrainingGoalsSheet({
           <div className="rounded-2xl border border-indigo/40 bg-bg-elevated p-4">
             <p className="text-[0.68rem] uppercase tracking-[0.2em] text-indigo">Climbing</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <GoalFormField label="Climbing goal">
+              <GoalFormField label="Climbing goal" htmlFor="training-goals-climbing-goal">
                 <select
-                  className={selectClassName}
+                  id="training-goals-climbing-goal"
+                  className={selectClassName("indigo")}
                   value={form.climbing_goal}
                   onChange={(event) => updateForm("climbing_goal", event.target.value as TrainingPreferences["climbing_goal"])}
                 >
@@ -1074,8 +1080,10 @@ function TrainingGoalsSheet({
                   ))}
                 </select>
               </GoalFormField>
-              <GoalFormField label="Sessions/week">
+              <GoalFormField label="Sessions/week" htmlFor="training-goals-climbing-sessions">
                 <Input
+                  id="training-goals-climbing-sessions"
+                  accent="indigo"
                   type="number"
                   min={0}
                   max={14}
@@ -1083,15 +1091,19 @@ function TrainingGoalsSheet({
                   onChange={(event) => updateForm("climbing_sessions_per_week", event.target.value)}
                 />
               </GoalFormField>
-              <GoalFormField label="Bouldering target">
+              <GoalFormField label="Bouldering target" htmlFor="training-goals-bouldering-target">
                 <Input
+                  id="training-goals-bouldering-target"
+                  accent="indigo"
                   value={form.climbing_target_bouldering_grade}
                   placeholder="V4"
                   onChange={(event) => updateForm("climbing_target_bouldering_grade", event.target.value)}
                 />
               </GoalFormField>
-              <GoalFormField label="Route target">
+              <GoalFormField label="Route target" htmlFor="training-goals-route-target">
                 <Input
+                  id="training-goals-route-target"
+                  accent="indigo"
                   value={form.climbing_target_route_grade}
                   placeholder="5.10a"
                   onChange={(event) => updateForm("climbing_target_route_grade", event.target.value)}
@@ -1116,16 +1128,18 @@ function TrainingGoalsSheet({
 
 function GoalFormField({
   label,
+  htmlFor,
   children,
   className,
 }: {
   label: string;
+  htmlFor: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("space-y-2", className)}>
-      <Label>{label}</Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
   );

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { ErrorStateCard, LoadingStateCard, LowDataCard } from "@/components/common/StateCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, type ClimbingAnalytics, type ClimbingProject, type ClimbingProjectInput, type ClimbingSession } from "@/lib/api";
 import { formatShortDate, todayISODate } from "@/lib/format";
@@ -24,7 +25,6 @@ const projectStatusOptions = ["active", "sent", "paused", "abandoned"];
 const CLIMB_VIEW_STORAGE_KEY = "trainos:climbing:view";
 const SESSION_FILTER_STORAGE_KEY = "trainos:climbing:sessionFilter";
 const PROJECT_FILTER_STORAGE_KEY = "trainos:climbing:projectFilter";
-const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-indigo focus:ring-2 focus:ring-indigo/20";
 
 export function ClimbPage() {
   const [sessions, setSessions] = useState<ClimbingSession[]>([]);
@@ -902,11 +902,11 @@ function ProjectEditForm({ project, onSaved, onCancel }: { project: ClimbingProj
       <div className="rounded-3xl border border-border bg-bg-base/40 p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
           <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} required className="focus:border-indigo focus:ring-indigo/20" /></Field>
-          <Field label="Status"><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}>{projectStatusOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
+          <Field label="Status"><select className={selectClassName("indigo")} value={status} onChange={(event) => setStatus(event.target.value)}>{projectStatusOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <Field label="Type"><select className={selectClass} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
-          <Field label="Grade system"><select className={selectClass} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
+          <Field label="Type"><select className={selectClassName("indigo")} value={sessionType} onChange={(event) => handleSessionTypeChange(event.target.value)}>{sessionTypeOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
+          <Field label="Grade system"><select className={selectClassName("indigo")} value={gradeSystem} onChange={(event) => setGradeSystem(event.target.value)}>{gradeSystemOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
           <Field label="Grade"><Input value={grade} onChange={(event) => setGrade(event.target.value)} required className="focus:border-indigo focus:ring-indigo/20" /></Field>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-3">

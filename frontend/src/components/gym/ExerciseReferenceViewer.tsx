@@ -6,6 +6,7 @@ import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { ReferencePreview } from "@/components/gym/ReferencePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import {
   Sheet,
   SheetContent,
@@ -44,7 +45,6 @@ type ReferenceEditorState = {
 } | null;
 
 const sourceOptions = Object.entries(sourceLabels) as Array<[ExerciseReferenceSource, string]>;
-const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/20";
 const upperBodyMuscles = ["Back", "Biceps", "Chest", "Forearms", "Shoulders", "Triceps"];
 const lowerBodyMuscles = ["Calves", "Glutes", "Hamstrings", "Quads"];
 const allMuscles = [...upperBodyMuscles, ...lowerBodyMuscles, "Core", "Full Body"];
@@ -643,7 +643,7 @@ function ReferenceForm({ exercise, reference, onSaved, onCancel }: { exercise: E
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Source">
           <select
-            className={selectClass}
+            className={selectClassName("amber")}
             value={source}
             onChange={(event) => {
               setSource(event.target.value as ExerciseReferenceSource);

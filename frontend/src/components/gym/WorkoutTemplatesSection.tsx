@@ -6,6 +6,7 @@ import { OptionalNotesField } from "@/components/common/OptionalNotesField";
 import { ReferencePreview } from "@/components/gym/ReferencePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { selectClassName } from "@/components/ui/form-control";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   api,
@@ -26,8 +27,6 @@ import { getYouTubePreview, referenceKindLabel } from "@/lib/video";
 const splitOptions = ["push", "pull", "legs", "upper", "lower", "full_body", "custom"];
 const movementOptions = ["push", "pull", "squat", "hinge", "lunge", "carry", "rotation", "isolation", "core", "other"];
 const equipmentOptions = ["barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"];
-const selectClass = "h-10 rounded-xl border border-border bg-bg-elevated px-3 text-sm text-text-primary outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/20";
-
 type WorkoutTemplatesSectionProps = {
   templates: WorkoutTemplate[];
   activeWorkout: ActiveWorkout | null;
@@ -35,6 +34,8 @@ type WorkoutTemplatesSectionProps = {
   muscleGroups: MuscleGroup[];
   onChanged: () => void | Promise<void>;
   onStartWithoutTemplate: () => void;
+  resumeRequest?: number;
+  onResumeRequestHandled?: () => void;
 };
 
 type TemplateEditorState = WorkoutTemplate | "new" | null;
@@ -50,7 +51,7 @@ type TemplateItemDraft = {
   notes: string;
 };
 
-export function WorkoutTemplatesSection({ templates, activeWorkout, exercises, muscleGroups, onChanged, onStartWithoutTemplate }: WorkoutTemplatesSectionProps) {
+export function WorkoutTemplatesSection({ templates, activeWorkout, exercises, muscleGroups, onChanged, onStartWithoutTemplate, resumeRequest = 0, onResumeRequestHandled }: WorkoutTemplatesSectionProps) {
   const [editorState, setEditorState] = useState<TemplateEditorState>(null);
   const [sheetWorkout, setSheetWorkout] = useState<ActiveWorkout | null>(null);
   const [startingId, setStartingId] = useState<number | null>(null);
@@ -59,6 +60,15 @@ export function WorkoutTemplatesSection({ templates, activeWorkout, exercises, m
   const [error, setError] = useState<string | null>(null);
   const visibleWorkout = sheetWorkout ?? activeWorkout;
   const activeBannerProgress = activeWorkout ? workoutProgress(activeWorkout) : null;
+
+  useEffect(() => {
+    if (!resumeRequest || !activeWorkout) return;
+    const requestId = window.setTimeout(() => {
+      setSheetWorkout(activeWorkout);
+      onResumeRequestHandled?.();
+    }, 0);
+    return () => window.clearTimeout(requestId);
+  }, [activeWorkout, onResumeRequestHandled, resumeRequest]);
 
   async function refresh() {
     await Promise.resolve(onChanged());
@@ -424,7 +434,7 @@ function TemplateEditorSheet({
             </div>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem]">
               <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} required placeholder="Upper V1" className="h-11 focus:border-amber focus:ring-amber/20" /></Field>
-              <Field label="Split"><select className={cn(selectClass, "h-11")} value={splitType} onChange={(event) => setSplitType(event.target.value)}>{splitOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
+              <Field label="Split"><select className={selectClassName("amber")} value={splitType} onChange={(event) => setSplitType(event.target.value)}>{splitOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}</select></Field>
             </div>
             <OptionalNotesField
               label="Routine notes"
@@ -498,7 +508,7 @@ function TemplateEditorSheet({
                     <div className="mt-4 space-y-3">
                       <Field label="Exercise">
                         {exerciseOptions.length > 0 ? (
-                          <select className={cn(selectClass, "h-11 w-full")} value={item.exerciseId} onChange={(event) => updateItem(item.key, { exerciseId: event.target.value })} required>
+                          <select className={selectClassName("amber")} value={item.exerciseId} onChange={(event) => updateItem(item.key, { exerciseId: event.target.value })} required>
                             {exerciseOptions.map((exerciseOption) => (
                               <option key={exerciseOption.id} value={exerciseOption.id}>{exerciseOption.name}</option>
                             ))}
@@ -628,17 +638,17 @@ function InlineCreateExercisePanel({
       </Field>
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Primary muscle">
-          <select className={selectClass} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)} required>
+          <select className={selectClassName("amber")} value={primaryGroup} onChange={(event) => setPrimaryGroup(event.target.value)} required>
             {muscleGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
         </Field>
         <Field label="Equipment">
-          <select className={selectClass} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
+          <select className={selectClassName("amber")} value={equipment} onChange={(event) => setEquipment(event.target.value)}>
             {equipmentOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
         <Field label="Pattern">
-          <select className={selectClass} value={movementPattern} onChange={(event) => setMovementPattern(event.target.value)}>
+          <select className={selectClassName("amber")} value={movementPattern} onChange={(event) => setMovementPattern(event.target.value)}>
             {movementOptions.map((option) => <option key={option} value={option}>{labelize(option)}</option>)}
           </select>
         </Field>
