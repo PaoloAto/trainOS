@@ -4,11 +4,11 @@ import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Home", icon: Home },
-  { to: "/run", label: "Run", icon: Timer },
-  { to: "/gym", label: "Gym", icon: Dumbbell },
-  { to: "/climb", label: "Climb", icon: Mountain },
-  { to: "/review", label: "Review", icon: LineChart },
+  { to: "/", label: "Home", icon: Home, active: "bg-green-muted text-green", rail: "bg-green" },
+  { to: "/run", label: "Run", icon: Timer, active: "bg-green-muted text-green", rail: "bg-green" },
+  { to: "/gym", label: "Gym", icon: Dumbbell, active: "bg-amber-muted text-amber", rail: "bg-amber" },
+  { to: "/climb", label: "Climb", icon: Mountain, active: "bg-indigo-muted text-indigo", rail: "bg-indigo" },
+  { to: "/review", label: "Review", icon: LineChart, active: "bg-green-muted text-green", rail: "bg-green" },
 ];
 
 export function MobileNav() {
@@ -21,16 +21,16 @@ export function MobileNav() {
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "group flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[0.62rem] font-semibold uppercase tracking-[0.12em] transition active:scale-[0.98]",
+                "group flex min-h-14 flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-medium transition active:scale-[0.98]",
                 isActive
-                  ? "bg-green-muted text-green"
+                  ? item.active
                   : "text-text-muted hover:bg-bg-elevated hover:text-text-primary",
               )
             }
           >
             {({ isActive }) => (
               <>
-                <span className={cn("h-0.5 w-6 rounded-full transition", isActive ? "bg-green" : "bg-transparent")} />
+                <span className={cn("h-0.5 w-6 rounded-full transition", isActive ? item.rail : "bg-transparent")} />
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
               </>
@@ -44,20 +44,21 @@ export function MobileNav() {
 
 export function DesktopNav() {
   return (
-    <aside className="sticky top-8 hidden h-[calc(100vh-4rem)] rounded-card border border-border bg-bg-card/80 p-4 shadow-card backdrop-blur-xl lg:block">
-      <div className="mb-7 rounded-2xl border border-green bg-green-muted p-4 text-green shadow-glow">
-        <p className="text-[0.65rem] uppercase tracking-[0.22em] text-green">TrainOS</p>
-        <p className="mt-2 text-sm font-semibold text-text-primary">Personal command center</p>
+    <aside className="sticky top-8 hidden h-[calc(100vh-4rem)] rounded-card border border-border bg-bg-card/80 p-5 shadow-card backdrop-blur-xl lg:block">
+      <div className="mb-8 border-b border-border pb-5">
+        <p className="font-mono text-xl font-bold leading-[0.8] tracking-[-0.12em] text-text-primary">TRAIN<br />OS</p>
+        <p className="mt-5 telemetry-label">Today</p>
+        <p className="mt-1 text-sm font-medium text-text-secondary">Train with intent.</p>
       </div>
-      <nav className="space-y-2">
+      <nav className="space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition hover:bg-bg-elevated hover:text-text-primary",
-                isActive ? "border border-green bg-green-muted text-green" : "border border-transparent text-text-secondary",
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition hover:bg-bg-elevated hover:text-text-primary",
+                isActive ? item.active : "text-text-secondary",
               )
             }
           >

@@ -9,8 +9,8 @@ export default {
       colors: {
         bg: {
           base: "#06080D",
-          card: "#0C1018",
-          elevated: "#101620",
+          card: "#0D1219",
+          elevated: "#111821",
         },
         border: {
           DEFAULT: "#182232",
@@ -21,21 +21,21 @@ export default {
           glow: "rgba(31, 232, 122, 0.32)",
         },
         amber: {
-          DEFAULT: "#F59E0B",
+          DEFAULT: "#F5A91B",
           muted: "rgba(245, 158, 11, 0.12)",
         },
         indigo: {
-          DEFAULT: "#6366F1",
-          muted: "rgba(99, 102, 241, 0.12)",
+          DEFAULT: "#7A7DF4",
+          muted: "rgba(122, 125, 244, 0.12)",
         },
         red: {
           DEFAULT: "#EF4444",
           muted: "rgba(239, 68, 68, 0.12)",
         },
         text: {
-          primary: "#ECF0F5",
-          secondary: "#9CA3AF",
-          muted: "#556070",
+          primary: "#F0F4F8",
+          secondary: "#A0AABA",
+          muted: "#748095",
         },
       },
       fontFamily: {
@@ -47,7 +47,7 @@ export default {
         sheet: "1.75rem",
       },
       boxShadow: {
-        card: "0 18px 60px rgba(0, 0, 0, 0.28)",
+        card: "0 12px 36px rgba(0, 0, 0, 0.22)",
         glow: "0 0 32px rgba(31, 232, 122, 0.18)",
         amber: "0 0 28px rgba(245, 158, 11, 0.14)",
         indigo: "0 0 28px rgba(99, 102, 241, 0.16)",

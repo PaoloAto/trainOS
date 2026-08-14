@@ -36,13 +36,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
-      <Card className="shadow-glow">
+    <div className="mx-auto grid min-h-screen w-full max-w-4xl items-center gap-8 py-8 lg:grid-cols-[1fr_minmax(22rem,0.8fr)]">
+      <div className="hidden border-l-2 border-green pl-6 lg:block">
+        <p className="telemetry-label">TrainOS</p>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight text-text-primary">Your training,<br />one system.</h1>
+        <p className="mt-4 max-w-sm text-base leading-7 text-text-secondary">Running, strength, climbing, and recovery in one private workspace.</p>
+      </div>
+      <Card>
         <div className="mb-8">
-          <p className="text-[0.68rem] uppercase tracking-[0.22em] text-text-muted">TrainOS Session</p>
-          <h1 className="mt-2 text-3xl font-bold text-text-primary">Log in</h1>
+          <p className="telemetry-label">TrainOS</p>
+          <h1 className="mt-2 text-3xl font-bold text-text-primary">Welcome back</h1>
           <p className="mt-2 text-sm leading-6 text-text-secondary">
-            Uses Django session authentication with CSRF. Signup is intentionally not part of Phase 1.
+            Sign in to continue your training.
           </p>
         </div>
 
@@ -74,13 +79,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
           ) : null}
           <Button className="w-full" type="submit" disabled={submitting}>
-            {submitting ? "Logging in..." : "Login"}
+            {submitting ? "Signing in..." : "Sign in"}
           </Button>
         </form>
       </Card>
 
       <Button asChild variant="ghost" className="mt-4">
-        <Link to="/">Back to shell</Link>
+        <Link to="/">Back to TrainOS</Link>
       </Button>
     </div>
   );

@@ -23,8 +23,13 @@
 
   button,
   input,
-  textarea {
+  textarea,
+  select {
     font: inherit;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-green/60 ring-offset-2 ring-offset-bg-base;
   }
 
   ::selection {
@@ -42,11 +47,26 @@
   ::-webkit-scrollbar-thumb {
     @apply rounded-full bg-border;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
   .metric-number {
     @apply font-mono tabular-nums;
+  }
+
+  .telemetry-label {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-text-muted;
   }
 }
 

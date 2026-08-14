@@ -330,6 +330,7 @@ export function ReviewPage() {
         title="Weekly Review"
         description="Goal progress, weekly highlights, attention items, and the next useful actions."
         accent="green"
+        icon={ClipboardCheck}
       />
 
       <section className="mt-7 space-y-6 md:mt-8 md:space-y-7">
@@ -397,22 +398,22 @@ function GoalCompletionSection({ goals }: { goals: WeeklyGoalCard[] }) {
         title="Weekly goal completion"
         description="Actual training against your saved targets."
       />
-      <div className="grid gap-4 lg:grid-cols-3">
-        {goals.map((goal, index) => (
-          <GoalCard key={goal.id} goal={goal} delay={index * 0.04} />
+      <div className="divide-y divide-border rounded-card border border-border bg-bg-card lg:grid lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+        {goals.map((goal) => (
+          <GoalCard key={goal.id} goal={goal} />
         ))}
       </div>
     </div>
   );
 }
 
-function GoalCard({ goal, delay }: { goal: WeeklyGoalCard; delay: number }) {
+function GoalCard({ goal }: { goal: WeeklyGoalCard }) {
   const Icon = goalIcons[goal.id];
   const accent = accentStyles[goal.accent];
   const tone = toneStyles[goal.statusTone];
 
   return (
-    <Card className={cn("p-4", accent.border)} delay={delay}>
+    <div className={cn("p-5", accent.border)}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">{goal.title}</p>
@@ -448,7 +449,7 @@ function GoalCard({ goal, delay }: { goal: WeeklyGoalCard; delay: number }) {
           </p>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
 

@@ -132,6 +132,7 @@ export function ClimbPage() {
         title="Climbing"
         description="Track bouldering sessions, top-rope routes, tries, sends, clean climbs, and active projects."
         accent="indigo"
+        icon={Mountain}
       />
 
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
@@ -500,20 +501,20 @@ function WeeklyClimbingTrend({ analytics }: { analytics: ClimbingAnalytics }) {
 }
 
 function GradeDistributionCard({ title, items, successLabel }: { title: string; items: ClimbingAnalytics["bouldering_progression"]["send_rate_by_grade"]; successLabel: string }) {
-  const maxAttempts = Math.max(1, ...items.map((item) => item.attempt_count));
   return (
     <Card>
       <SectionTitle icon={Target} eyebrow="Grade distribution" title={title} />
       <div className="mt-4 space-y-2">
         {items.length ? items.map((item) => (
-          <DistributionRow
-            key={`${item.grade_system}-${item.grade}`}
-            label={item.grade}
-            count={item.attempt_count}
-            max={maxAttempts}
-            detail={`${rateDisplay(item)} ${successLabel} / ${item.success_count} success`}
-          />
-        )) : <p className="rounded-2xl border border-dashed border-border bg-bg-elevated p-4 text-sm leading-6 text-text-secondary">No grade data yet. Log tries to build this distribution.</p>}
+          <div key={`${item.grade_system}-${item.grade}`} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-border py-2 last:border-0">
+            <span className="metric-number text-sm font-semibold text-text-primary">{item.grade}</span>
+            <div className="flex flex-wrap gap-1" aria-label={`${item.attempt_count} attempts`}>
+              {Array.from({ length: Math.min(item.attempt_count, 10) }, (_, index) => <span key={index} className="h-2 w-2 rounded-full bg-indigo" />)}
+              {item.attempt_count > 10 ? <span className="text-xs text-text-muted">+{item.attempt_count - 10}</span> : null}
+            </div>
+            <span className="text-xs text-text-secondary">{rateDisplay(item)} {successLabel}</span>
+          </div>
+        )) : <p className="border-l-2 border-indigo pl-3 text-sm leading-6 text-text-secondary">No grade data yet. Log tries to build this ladder.</p>}
       </div>
     </Card>
   );

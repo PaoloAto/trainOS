@@ -129,6 +129,7 @@ export function RunPage() {
         title="Run Log"
         description="Manual logging stays live. TCX imports now feed a marathon-training baseline."
         accent="green"
+        icon={Timer}
       />
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
         <RunningDashboard analytics={analytics} loading={loading} error={error} />

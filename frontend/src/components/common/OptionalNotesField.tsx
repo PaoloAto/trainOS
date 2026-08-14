@@ -1,7 +1,8 @@
 import { ChevronUp, Plus } from "lucide-react";
-import { type ChangeEvent, type KeyboardEvent, useState } from "react";
+import { type ChangeEvent, type KeyboardEvent, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { textareaClassName } from "@/components/ui/form-control";
 import { cn } from "@/lib/utils";
 
 type OptionalNotesFieldProps = {
@@ -16,7 +17,6 @@ type OptionalNotesFieldProps = {
   className?: string;
 };
 
-const textareaClass = "min-h-24 w-full resize-none rounded-xl border border-border bg-bg-elevated px-3 py-2 text-sm leading-6 text-text-primary outline-none transition placeholder:text-text-muted";
 const accentClasses = {
   green: {
     collapsed: "hover:border-green hover:text-green",
@@ -38,12 +38,14 @@ export function OptionalNotesField({
   onChange,
   placeholder,
   helperText,
-  collapsedLabel = "+ Add optional notes",
+  collapsedLabel = "+ Add notes",
   defaultOpen,
   accent = "amber",
   className,
 }: OptionalNotesFieldProps) {
   const [open, setOpen] = useState(defaultOpen ?? value.trim().length > 0);
+  const notesId = useId();
+  const helperId = `${notesId}-helper`;
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
     onChange(event.target.value);
@@ -58,7 +60,7 @@ export function OptionalNotesField({
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-bg-elevated px-4 py-3 text-left text-sm font-semibold text-text-secondary transition",
+          "flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-bg-elevated px-4 py-3 text-left text-sm font-medium text-text-secondary transition",
           accentClasses[accent].collapsed,
           className,
         )}
@@ -73,22 +75,24 @@ export function OptionalNotesField({
   }
 
   return (
-    <div className={cn("rounded-3xl border border-border bg-bg-base/40 p-3", className)}>
+    <div className={cn("border-t border-border pt-4", className)}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</label>
+        <label htmlFor={notesId} className="text-sm font-medium text-text-secondary">{label} <span className="text-text-muted">Optional</span></label>
         <Button type="button" variant="ghost" size="sm" className="h-8 rounded-xl px-2 text-xs" onClick={() => setOpen(false)}>
           <ChevronUp className="h-3.5 w-3.5" />
           Hide notes
         </Button>
       </div>
       <textarea
-        className={cn(textareaClass, accentClasses[accent].focus)}
+        id={notesId}
+        aria-describedby={helperText ? helperId : undefined}
+        className={cn(textareaClassName, accentClasses[accent].focus)}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
       />
-      {helperText ? <p className="mt-2 text-xs leading-5 text-text-muted">{helperText}</p> : null}
+      {helperText ? <p id={helperId} className="mt-2 text-xs leading-5 text-text-muted">{helperText}</p> : null}
     </div>
   );
 }

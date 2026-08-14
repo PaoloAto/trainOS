@@ -153,12 +153,14 @@ export function GymPage() {
         title="Strength"
         description="Create movements, save form videos, build routines, and log workouts."
         accent="amber"
+        icon={Dumbbell}
       />
       <section className="mt-7 space-y-4 md:mt-8 md:space-y-5">
         {loading ? <LoadingStateCard message="Loading gym dashboard..." accent="amber" /> : null}
         {error ? <ErrorStateCard title="Gym unavailable" message={error} /> : null}
         {!loading && !error && analytics ? (
           <>
+            {activeWorkout ? <ActiveWorkoutPriority activeWorkout={activeWorkout} onResume={() => setGymView("routines")} /> : null}
             <GymFlowGuide compact={activeExercises.length > 0 && templates.length > 0 && savedVideoCount > 0} />
             <GymModeTabs activeView={gymView} onChange={setGymView} />
 
@@ -302,8 +304,12 @@ function GymModeTabs({ activeView, onChange }: { activeView: GymView; onChange: 
 function GymFlowGuide({ compact }: { compact: boolean }) {
   const steps = ["Build exercise library", "Add form videos/cues", "Build routine", "Start workout"];
 
+  if (compact) {
+    return <p className="border-l-2 border-amber pl-3 text-sm leading-6 text-text-secondary">Your strength setup is ready. Keep movements and routines current as your training changes.</p>;
+  }
+
   return (
-    <Card className={cn("p-4", compact ? "md:p-4" : "md:p-5")} delay={0.01}>
+    <Card className="p-4 md:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[0.68rem] uppercase tracking-[0.2em] text-text-muted">Gym flow</p>
@@ -318,6 +324,22 @@ function GymFlowGuide({ compact }: { compact: boolean }) {
             <p className="mt-1 text-sm font-semibold text-text-primary">{step}</p>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+function ActiveWorkoutPriority({ activeWorkout, onResume }: { activeWorkout: ActiveWorkout; onResume: () => void }) {
+  const templateName = activeWorkout.template_summary?.name ?? "Workout";
+  return (
+    <Card className="border-l-2 border-l-amber bg-amber-muted/30 p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="telemetry-label text-amber">Active workout</p>
+          <h2 className="mt-1 text-xl font-semibold text-text-primary">{templateName}</h2>
+          <p className="mt-1 text-sm leading-6 text-text-secondary">{activeWorkout.logged_sets.length} set{activeWorkout.logged_sets.length === 1 ? "" : "s"} logged. Resume exactly where you left off.</p>
+        </div>
+        <Button type="button" className="w-full border-amber bg-amber-muted text-amber hover:bg-amber/20 sm:w-auto" onClick={onResume}><Play className="h-4 w-4" />Resume workout</Button>
       </div>
     </Card>
   );

@@ -483,6 +483,7 @@ export function HomePage({ user }: HomePageProps) {
           title={user ? `Ready, ${user.username}` : "TrainOS Command"}
           description="Loading today's readiness, weekly balance, active work, and recent training."
           accent="green"
+          icon={ClipboardCheck}
         />
         <section className="mt-7 md:mt-8">
           <LoadingStateCard accent="green" message="Loading TrainOS command center..." />
@@ -497,6 +498,7 @@ export function HomePage({ user }: HomePageProps) {
         title={user ? `Ready, ${user.username}` : "TrainOS Command"}
         description="Today, this week, active work, and the fastest paths to log what matters."
         accent="green"
+        icon={ClipboardCheck}
       />
 
       <section className="mt-7 space-y-6 md:mt-8 md:space-y-7">
@@ -504,6 +506,12 @@ export function HomePage({ user }: HomePageProps) {
           checkIn={data.checkIn}
           readiness={readiness}
           onCheckIn={() => openQuickLog("check-in")}
+        />
+
+        <TrainingPulse
+          runs={data.runs}
+          gymSessions={data.gymSessions}
+          climbingSessions={data.climbingSessions}
         />
 
         <TrainingBriefSection insights={trainingBrief} onAction={handleTrainingBriefAction} />
@@ -598,41 +606,96 @@ function TodayReadinessCard({
   ];
 
   return (
-    <Card className="overflow-hidden border-green/50 p-0 shadow-glow" delay={0.02}>
-      <div className="border-b border-green/30 bg-green-muted/60 px-5 py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[0.68rem] uppercase tracking-[0.22em] text-text-muted">Today Readiness</p>
-            <h2 className="mt-1 text-xl font-semibold text-text-primary">{readiness.label}</h2>
-            <p className="mt-1 text-sm leading-6 text-text-secondary">{readiness.detail}</p>
-          </div>
-          {readiness.score !== null ? (
-            <div className="rounded-2xl border border-green bg-bg-card px-4 py-3 text-center">
-              <p className="font-mono text-3xl font-semibold text-green">{readiness.score}</p>
-              <p className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">Score</p>
-            </div>
-          ) : (
-            <span className="w-fit rounded-full border border-green bg-bg-card px-3 py-1 text-xs font-semibold text-green">
-              Baseline
-            </span>
-          )}
+    <Card className="border-l-2 border-l-green p-5 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="telemetry-label">Today readiness</p>
+          <h2 className="mt-2 text-xl font-semibold text-text-primary">{readiness.label}</h2>
+          <p className="mt-1 text-sm leading-6 text-text-secondary">{readiness.detail}</p>
         </div>
+        {readiness.score !== null ? (
+          <div className="shrink-0 text-left sm:text-right">
+            <p className="metric-number text-4xl font-semibold text-green">{readiness.score}</p>
+            <p className="telemetry-label mt-1">Readiness</p>
+          </div>
+        ) : <span className="w-fit rounded-full border border-green/50 bg-green-muted px-3 py-1 text-xs font-semibold text-green">Baseline</span>}
       </div>
-      <div className="space-y-4 p-5">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="flex flex-wrap gap-x-5 gap-y-3">
           {metrics.map((metric) => (
-            <div key={metric.label} className="rounded-2xl border border-border bg-bg-elevated p-3">
-              <p className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">{metric.label}</p>
-              <p className="mt-2 font-mono text-xl font-semibold text-text-primary">{metric.value}</p>
+            <div key={metric.label} className="min-w-[4.5rem]">
+              <p className="telemetry-label">{metric.label}</p>
+              <p className="metric-number mt-1 text-lg font-semibold text-text-primary">{metric.value}</p>
             </div>
           ))}
         </div>
         {checkIn.notes ? (
-          <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-3">
-            <p className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">Notes</p>
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="telemetry-label">Notes</p>
             <p className="mt-1 line-clamp-3 text-sm leading-6 text-text-secondary">{checkIn.notes}</p>
           </div>
         ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function TrainingPulse({
+  runs,
+  gymSessions,
+  climbingSessions,
+}: {
+  runs: RunActivity[];
+  gymSessions: GymSession[];
+  climbingSessions: ClimbingSession[];
+}) {
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    return date;
+  });
+  const markersByDay = new Map<string, Set<"run" | "gym" | "climb">>();
+  const add = (value: string | null | undefined, kind: "run" | "gym" | "climb") => {
+    if (!value) return;
+    const parsed = value.length === 10 ? new Date(`${value}T12:00:00`) : new Date(value);
+    if (Number.isNaN(parsed.valueOf())) return;
+    const key = `${parsed.getFullYear()}-${parsed.getMonth()}-${parsed.getDate()}`;
+    const current = markersByDay.get(key) ?? new Set();
+    current.add(kind);
+    markersByDay.set(key, current);
+  };
+  runs.forEach((run) => add(run.started_at, "run"));
+  gymSessions.forEach((session) => add(session.date, "gym"));
+  climbingSessions.forEach((session) => add(session.date, "climb"));
+
+  const markerClass = { run: "bg-green", gym: "bg-amber", climb: "bg-indigo" };
+  const markerLabel = { run: "Run", gym: "Gym", climb: "Climb" };
+
+  return (
+    <Card className="p-5 md:p-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <div>
+          <p className="telemetry-label">Training pulse</p>
+          <h2 className="mt-1 text-lg font-semibold text-text-primary">Your last seven days</h2>
+        </div>
+        <p className="text-xs text-text-muted">Real session records</p>
+      </div>
+      <div className="mt-5 grid grid-cols-7 gap-1.5 sm:gap-3">
+        {days.map((date) => {
+          const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+          const markers = [...(markersByDay.get(key) ?? new Set<"run" | "gym" | "climb">())];
+          const isToday = date.toDateString() === new Date().toDateString();
+          return (
+            <div key={key} className={cn("min-w-0 border-l border-border pl-2 sm:pl-3", isToday && "border-l-green") }>
+              <p className={cn("telemetry-label text-[0.62rem]", isToday && "text-green")}>{date.toLocaleDateString(undefined, { weekday: "short" })}</p>
+              <div className="mt-3 flex min-h-5 flex-wrap gap-1" aria-label={markers.length ? markers.map((marker) => markerLabel[marker]).join(", ") : "Rest day"}>
+                {markers.map((marker) => <span key={marker} title={markerLabel[marker]} className={cn("h-2.5 w-2.5 rounded-full", markerClass[marker])} />)}
+              </div>
+              <p className="mt-2 truncate text-[0.68rem] text-text-muted">{isToday ? "Today" : markers.length ? markers.map((marker) => markerLabel[marker]).join(" · ") : "Rest"}</p>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );
@@ -661,7 +724,7 @@ function TrainingBriefSection({
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {insights.map((insight, index) => (
-            <TrainingBriefCard key={insight.id} insight={insight} delay={index * 0.03} onAction={onAction} />
+            <TrainingBriefCard key={insight.id} insight={insight} delay={index * 0.03} primary={index === 0} onAction={onAction} />
           ))}
         </div>
       )}
@@ -672,16 +735,18 @@ function TrainingBriefSection({
 function TrainingBriefCard({
   insight,
   delay,
+  primary,
   onAction,
 }: {
   insight: TrainingBriefInsight;
   delay: number;
+  primary: boolean;
   onAction: (target?: TrainingBriefActionTarget) => void;
 }) {
   const tone = briefToneStyles[insight.tone];
 
   return (
-    <Card className={cn("p-4", tone.border)} delay={delay}>
+    <Card className={cn("p-4", tone.border, primary && "border-l-2 border-l-green lg:col-span-2 lg:p-5")} delay={delay}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className={cn("rounded-full border px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em]", tone.badge)}>
           {briefPillarLabels[insight.pillar]}

@@ -1,17 +1,13 @@
-import { motion, type HTMLMotionProps } from "framer-motion";
+import type { HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-type CardProps = HTMLMotionProps<"div"> & {
-  delay?: number;
-};
+type CardProps = HTMLAttributes<HTMLDivElement> & { delay?: number };
 
-export function Card({ className, delay = 0, children, ...props }: CardProps) {
+export function Card({ className, delay, children, ...props }: CardProps) {
+  void delay;
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay, ease: "easeOut" }}
+    <div
       className={cn(
         "rounded-card border border-border bg-bg-card p-5 shadow-card",
         className,
@@ -19,6 +15,6 @@ export function Card({ className, delay = 0, children, ...props }: CardProps) {
       {...props}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
